@@ -36,7 +36,7 @@ if(a[0]==='inspect'){
 }else if(a[0]==='compose'){
  if(a.includes('exec')){if(process.env.CFO_MOCK_PREFLIGHT_FAIL==='1')exit(18);console.log('{"event":"formal_mcp_local_check","status":"ready"}')}
  else if(a.includes('ps')){if(s.new)console.log(s.new.id)}
- else if(a.includes('create')){if(process.env.CFO_MOCK_CREATE_FAIL==='1')exit(17);if(!s.new)s.new={id:'new-id',tunnel:s.old.tunnel,running:false,restart:'unless-stopped'};}
+ else if(a.includes('up')&&a.includes('--no-start')){if(process.env.CFO_MOCK_CREATE_FAIL==='1')exit(17);if(!s.new)s.new={id:'new-id',tunnel:s.old.tunnel,running:false,restart:'unless-stopped'};}
  else if(a.includes('up')){if(process.env.CFO_MOCK_START_FAIL==='1')exit(19);s.new.running=true;}
  else exit(98);
 }else if(a[0]==='update'){container(a.at(-1)).restart=a[1].slice('--restart='.length)}
@@ -56,7 +56,7 @@ exit(0);
 test('existing plugin migration preflights formal tools, prepares before stopping, and never runs two clients',()=>fixture(async({target,run,state})=>{
  const result=run();assert.equal(result.status,0,result.stderr);assert.match(result.stdout,/CHATGPT_CONNECTOR_SWITCHED/);assert.ok(!result.stdout.includes('SYNTHETIC_CREDENTIAL_ONLY'));
  const s=await state();assert.equal(s.old.running,false);assert.equal(s.old.restart,'no');assert.equal(s.new.running,true);assert.equal(s.new.restart,'unless-stopped');assert.equal(s.new.tunnel,expected);
- const actions=s.actions.map(a=>a.join(' '));assert.ok(actions.findIndex(a=>a.includes('create --no-deps'))<actions.findIndex(a=>a==='stop cfo-test-tunnel-1'));assert.ok(actions.findIndex(a=>a==='stop cfo-test-tunnel-1')<actions.findIndex(a=>a.includes('up -d --no-deps')));
+ const actions=s.actions.map(a=>a.join(' '));assert.ok(actions.findIndex(a=>a.includes('up --no-start --no-deps --no-build'))<actions.findIndex(a=>a==='stop cfo-test-tunnel-1'));assert.ok(actions.findIndex(a=>a==='stop cfo-test-tunnel-1')<actions.findIndex(a=>a.includes('up -d --no-deps')));
  assert.ok(actions.some(a=>a.includes('exec -T app node scripts/check-chatgpt.mjs')));assert.ok(!actions.some(a=>a.includes('down')||a.includes('rm ')));
  assert.equal(await readFile(path.join(target,'secrets/web-password.txt'),'utf8'),'SYNTHETIC_PASSWORD_ONLY\n');
 }));

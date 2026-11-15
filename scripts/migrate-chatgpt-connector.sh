@@ -77,7 +77,7 @@ if [ -f "$state/complete" ] && [ -n "$new_id" ] && [ "$(field '{{.State.Running}
 fi
 if [ -n "$new_id" ] && [ "$(field '{{.State.Running}}' "$new_id")" = true ]; then echo '正式连接器已运行但无有效完成状态，请先核对，未修改'; exit 1; fi
 # Pull and create first. A download/configuration error leaves the old client online.
-compose create --no-deps tunnel
+compose up --no-start --no-deps --no-build tunnel
 new_id=$(compose ps -aq tunnel)
 [ -n "$new_id" ] && [ "$(tunnel_id "$new_id")" = "$expected" ] || { echo '新连接器身份验证失败，未停止原连接器'; exit 1; }
 if [ "$(field '{{.State.Running}}' "$new_id")" = true ]; then echo '正式连接器已运行但无完成记录，请先核对，未停止原连接器'; exit 1; fi

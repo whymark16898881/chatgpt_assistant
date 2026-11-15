@@ -31,3 +31,10 @@ test('an unrelated pre-existing deploy directory is never overwritten',async()=>
 test('updater refuses a state directory inside the live financial application',async()=>{
  const f=await fixture();try{await assert.rejects(f.run('update',{CFO_DEPLOY_ROOT:path.join(f.root,'nested-state')}));assert.equal(await exists(f.env.CFO_MOCK_LOG),false);assert.equal(await readFile(path.join(f.root,'financial-sentinel'),'utf8'),'DO_NOT_CHANGE');}finally{await f.close();}
 });
+test('busy manual updates fail the command chain while automatic checks skip cleanly',async()=>{
+ const f=await fixture();try{
+  await f.run('--check');const lock=path.join(f.state,'update.lock');
+  await assert.rejects(exec('flock',[lock,'sh','-c','sh "$1" update && printf SHOULD_NOT_RUN','test',updater],{env:f.env}),e=>e.code===75&&!e.stdout.includes('SHOULD_NOT_RUN'));
+  const automatic=await exec('flock',[lock,'sh',updater,'--automatic'],{env:f.env});assert.match(automatic.stdout,/已有CFO更新任务/);assert.equal(await exists(f.env.CFO_MOCK_LOG),false);
+ }finally{await f.close();}
+});

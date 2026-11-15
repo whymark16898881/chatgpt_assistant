@@ -31,7 +31,10 @@ if [ "$mode" = --status ]; then
 fi
 for command in curl tar flock docker; do command -v "$command" >/dev/null || { echo "缺少工具: $command"; exit 1; }; done
 exec 9>"$state/update.lock"
-if ! flock -n 9; then echo '已有CFO更新任务正在运行'; exit 0; fi
+if ! flock -n 9; then
+ echo '已有CFO更新任务正在运行'
+ if [ "$mode" = --automatic ]; then exit 0; else exit 75; fi
+fi
 sha=$(curl -q -fsSL --proto '=https' --tlsv1.2 --connect-timeout 15 --max-time 60 --retry 2 -H 'Accept: application/vnd.github.sha' -H 'User-Agent: Personal-CFO-updater' "https://api.github.com/repos/$repo/commits/stable")
 case "$sha" in ''|*[!0-9a-f]*) echo 'GitHub未返回有效commit，未部署'; exit 1;; esac
 if [ "${#sha}" != 40 ]; then echo 'GitHub commit长度不符，未部署'; exit 1; fi
