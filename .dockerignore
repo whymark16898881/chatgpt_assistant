@@ -1,0 +1,23 @@
+# Explicit source allowlist: never copy a live NAS mount, backup, .env or secrets.
+**
+!package.json
+!package-lock.json
+!next.config.mjs
+!next-env.d.ts
+!tsconfig.json
+!server.mjs
+!schema.sql
+!app/
+!app/**
+!lib/
+lib/**
+!lib/*.mjs
+!scripts/
+scripts/**
+!scripts/*.mjs
+!scripts/*.sh
+!probe/
+probe/**
+!probe/download.mjs
+!probe/policy.mjs
+!probe/errors.mjs

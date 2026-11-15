@@ -1,0 +1,64 @@
+name: cfo
+services:
+  setup:
+    image: node:24-bookworm-slim@sha256:01d566e8d94d8c619591d78652babfccd3c6992a3dffa9ed5ab39e11cf6c70e9
+    user: "0:0"
+    command: ["node", "/init.mjs"]
+    restart: "no"
+    volumes:
+      - type: bind
+        source: ./scripts/init.mjs
+        target: /init.mjs
+        read_only: true
+        bind:
+          create_host_path: false
+      - credentials:/run/cfo
+      - originals:/data
+    secrets: [web_password]
+    mem_limit: 128m
+  postgres:
+    image: postgres:17-bookworm@sha256:665dc7b37ac52a17e298511414c21d23ffa4e6a6ef6225b3e5d59c7afb35e994
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: cfo
+      POSTGRES_DB: cfo
+      POSTGRES_PASSWORD_FILE: /run/cfo/db-password
+    volumes:
+      - credentials:/run/cfo:ro
+      - database:/var/lib/postgresql/data
+    depends_on:
+      setup: {condition: service_completed_successfully}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cfo -d cfo"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    mem_limit: 512m
+  app:
+    build: .
+    image: personal-cfo:0.3.4
+    restart: unless-stopped
+    environment:
+      PGHOST: postgres
+      CFO_PORTFOLIO_REFRESH_POLICY: twice_daily
+    ports: ["127.0.0.1:3200:3000"]
+    volumes:
+      - credentials:/run/cfo:ro
+      - originals:/data
+    depends_on:
+      postgres: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+    mem_limit: 768m
+volumes:
+  credentials:
+  originals:
+  database:
+secrets:
+  web_password:
+    file: ./secrets/web-password.txt

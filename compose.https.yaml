@@ -1,0 +1,7 @@
+# Apply only after the actual CFO host and HTTPS hostname are confirmed.
+# Applies to the existing CFO app only. See docs/CFO_PUBLIC_DEPLOYMENT.md.
+services:
+  app:
+    environment:
+      CFO_PUBLIC_ORIGIN: ${CFO_PUBLIC_ORIGIN:?Set the exact HTTPS origin, for example https://cfo.example.com}
+      CFO_SECURE_COOKIE: "true"

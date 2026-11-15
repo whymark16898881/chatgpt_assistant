@@ -1,0 +1,24 @@
+# Separate formal tunnel only. Never reuse the running cfo-test tunnel ID.
+services:
+  tunnel:
+    image: ghcr.io/openai/tunnel-client:v0.0.20@sha256:333005e6f5df2760f1b9f06fe873f5fc629554218f68c91d9cfbfe467d0fb42b
+    restart: unless-stopped
+    command:
+      - --control-plane.api-key=file:/run/secrets/openai_runtime_key
+      - "--mcp.extra-headers=Authorization: file:/run/cfo/mcp-authorization"
+      - "--mcp.discovery-extra-headers=Authorization: file:/run/cfo/mcp-authorization"
+    environment:
+      CONTROL_PLANE_TUNNEL_ID: ${CFO_TUNNEL_ID:?Set a NEW formal CFO tunnel ID}
+      MCP_SERVER_URL: http://app:3000/mcp
+      HEALTH_LISTEN_ADDR: 127.0.0.1:8080
+      LOG_LEVEL: info
+      LOG_FORMAT: json
+    volumes:
+      - credentials:/run/cfo:ro
+    secrets: [openai_runtime_key]
+    depends_on:
+      app: {condition: service_healthy}
+    mem_limit: 256m
+secrets:
+  openai_runtime_key:
+    file: ../cfo-test/secrets/openai-runtime-key.txt

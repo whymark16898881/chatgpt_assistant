@@ -1,0 +1,307 @@
+{
+  "schema": "account_results/v1",
+  "status": "SAMPLE — 金额全部虚构，仅用于接口对接验证，不可入账",
+  "generated_at": "2026-11-15T17:46:11+08:00",
+  "producer": "portfolio-automation / account_results.py (尚未实现)",
+  "currency": "USD",
+  "normalized": true,
+  "fx": {
+    "原币": "不可恢复",
+    "说明": "上游产物只保留已折算的 USD 金额（external_flows.csv 只有 amount_usd；券商风控快照只有 USD 口径）。原币种与成交汇率没有留存，不做倒推。",
+    "汇兑影响": null,
+    "汇兑影响_原因": "仓库内没有任何汇兑损益计算（已全文检索确认）；汇兑影响已混在总损益里，不可分离。"
+  },
+  "export_batch": {
+    "export_id": "20261115T175127+0800#fdd239ad",
+    "说明": "指向本文件所在的那一批 manifest.json，仅用于追溯来源批次。★它不是任何一条 result 的 as_of —— 逐条自带 as_of。"
+  },
+
+  "results": [
+    {
+      "result_id": "bal:moomoo:2026-11-15T17:46:11+08:00",
+      "logical_key": {
+        "account_scope": ["moomoo"],
+        "kind": "balance",
+        "as_of": "2026-11-15T17:46:11+08:00",
+        "period_start": null,
+        "period_end": null
+      },
+      "content_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "revision": 0,
+      "kind": "balance",
+      "account_scope": ["moomoo"],
+      "as_of": "2026-11-15T17:46:11+08:00",
+      "as_of_source": "account_risk_latest.json:ts (SGT, 整份快照一个时刻)",
+      "currency": "USD",
+      "normalized": true,
+
+      "decomposable": true,
+      "decomposition_basis": "gross_assets_liabilities",
+      "basis_note": "用券商返回的 long_mv / short_mv 做毛额拆分，空头未与多头抵销。short_mv 由券商以负数返回，这里取绝对值记入负债。",
+      "short_mv_sign_convention": "源字段为负；本文件 liabilities.short_market_value 已转为正数",
+
+      "assets_total": "1000000.00",
+      "liabilities_total": "250000.00",
+      "net_assets": "750000.00",
+
+      "assets": {
+        "cash_positive": "0.00",
+        "long_market_value": "1000000.00"
+      },
+      "liabilities": {
+        "margin_debit": "200000.00",
+        "short_market_value": "50000.00"
+      },
+
+      "identity_check": {
+        "formula": "assets_total - liabilities_total = net_assets",
+        "tolerance": "0.01",
+        "residual": "0.00",
+        "passed": true,
+        "说明": "实盘实测残差约 0.004 USD（舍入），在 0.01 容差内。超容差则本条改为 decomposable=false，不用调整项硬凑。"
+      },
+
+      "liabilities_completeness": {
+        "covers": ["保证金借贷(负现金)", "空头证券市值(含空头期权)"],
+        "excludes": ["已计提未入账利息", "应付费用/税金", "其他应付项"],
+        "说明": "★这是『保证金借贷 + 空头证券』两项的毛额，不等于该账户的全部债务。不能据此宣称这是完整的个人整体杠杆。"
+      },
+
+      "source_fields": {
+        "cash": "account_risk_latest.json:brokers.moomoo.broker.cash",
+        "long_mv": "account_risk_latest.json:brokers.moomoo.broker.long_mv",
+        "short_mv": "account_risk_latest.json:brokers.moomoo.broker.short_mv",
+        "net_assets": "account_risk_latest.json:brokers.moomoo.broker.total_assets"
+      },
+      "gaps": []
+    },
+
+    {
+      "result_id": "bal:futubull:2026-11-15T17:46:11+08:00",
+      "logical_key": {
+        "account_scope": ["futubull"],
+        "kind": "balance",
+        "as_of": "2026-11-15T17:46:11+08:00",
+        "period_start": null,
+        "period_end": null
+      },
+      "content_hash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+      "revision": 0,
+      "kind": "balance",
+      "account_scope": ["futubull"],
+      "as_of": "2026-11-15T17:46:11+08:00",
+      "as_of_source": "account_risk_latest.json:ts (SGT, 整份快照一个时刻)",
+      "currency": "USD",
+      "normalized": true,
+
+      "decomposable": true,
+      "decomposition_basis": "gross_assets_liabilities",
+      "basis_note": "同 moomoo。本账户现金为正，故 margin_debit = 0。",
+      "short_mv_sign_convention": "源字段为负；本文件 liabilities.short_market_value 已转为正数",
+
+      "assets_total": "60000.00",
+      "liabilities_total": "5000.00",
+      "net_assets": "55000.00",
+
+      "assets": {
+        "cash_positive": "40000.00",
+        "long_market_value": "20000.00"
+      },
+      "liabilities": {
+        "margin_debit": "0.00",
+        "short_market_value": "5000.00"
+      },
+
+      "identity_check": {
+        "formula": "assets_total - liabilities_total = net_assets",
+        "tolerance": "0.01",
+        "residual": "0.00",
+        "passed": true
+      },
+
+      "liabilities_completeness": {
+        "covers": ["保证金借贷(负现金)", "空头证券市值(含空头期权)"],
+        "excludes": ["已计提未入账利息", "应付费用/税金", "其他应付项"],
+        "说明": "同 moomoo。"
+      },
+      "gaps": [
+        {
+          "code": "FUTUBULL_BALANCE_OK_BUT_PERIOD_UNAVAILABLE",
+          "说明": "余额本身可信且可拆；但该账户的期间损益不可用，见 kind=period 中 account_scope=[futubull] 那条。"
+        }
+      ]
+    },
+
+    {
+      "result_id": "bal:tiger:2026-11-15T17:46:11+08:00",
+      "logical_key": {
+        "account_scope": ["tiger"],
+        "kind": "balance",
+        "as_of": "2026-11-15T17:46:11+08:00",
+        "period_start": null,
+        "period_end": null
+      },
+      "content_hash": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+      "revision": 0,
+      "kind": "balance",
+      "account_scope": ["tiger"],
+      "as_of": "2026-11-15T17:46:11+08:00",
+      "as_of_source": "account_risk_latest.json:ts (SGT, 整份快照一个时刻)",
+      "currency": "USD",
+      "normalized": true,
+
+      "decomposable": false,
+      "decomposition_basis": null,
+      "basis_note": null,
+
+      "assets_total": null,
+      "liabilities_total": null,
+      "net_assets": "95000.00",
+
+      "assets": null,
+      "liabilities": null,
+      "identity_check": null,
+
+      "non_decomposable_reason": [
+        "券商接口不返回 long_mv / short_mv —— Tiger 一档只有 market_val 与 gross_position_value，没有多空毛额，无法做毛额拆分。",
+        "连净额口径都不闭合：cash + market_val != total_assets，且差额逐日变动（实盘两次观测差额不同），因此也不是一个固定对账项。"
+      ],
+      "禁止用法": "不得用差额倒补一个虚构科目；不得把本账户并进资产负债表的总资产/总负债；不得参与个人整体杠杆计算。net_assets 本身可信，可用于净资产与期间损益。",
+      "source_fields": {
+        "net_assets": "account_risk_latest.json:brokers.tiger.broker.total_assets"
+      },
+      "gaps": [
+        {"code": "TIGER_NOT_DECOMPOSABLE", "说明": "见 non_decomposable_reason。"}
+      ]
+    },
+
+    {
+      "result_id": "per:moomoo+tiger:2026-10-01..2026-10-31",
+      "logical_key": {
+        "account_scope": ["moomoo", "tiger"],
+        "kind": "period",
+        "as_of": null,
+        "period_start": "2026-10-01",
+        "period_end": "2026-10-31"
+      },
+      "content_hash": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+      "revision": 0,
+      "kind": "period",
+      "account_scope": ["moomoo", "tiger"],
+      "scope_note": "★这是 moomoo+tiger 两家合计的一条结果，不是逐券商。本结构不提供逐券商的期间损益拆分。",
+      "currency": "USD",
+      "normalized": true,
+
+      "period_start": "2026-10-01",
+      "period_end": "2026-10-31",
+      "coverage_through": "2026-10-30",
+      "coverage_through_说明": "资金流的第二把尺（月结单对账）只覆盖到 2026-10-30；之后到 period_end 之间的出入金仅有券商 API 单一来源，未经二次核对。",
+
+      "opening_net_assets": "800000.00",
+      "opening_as_of": "2026-09-30",
+      "closing_net_assets": "850000.00",
+      "closing_as_of": "2026-10-31",
+      "net_cash_in": "30000.00",
+      "net_securities_in_fv": null,
+      "net_securities_in_fv_原因": "证券转仓没有任何结构化记录（external_flows.csv 里不存在转仓类型）。富途的实物转仓只存在于 PDF 月结单中，未解析。",
+      "total_pnl": "20000.00",
+
+      "calculation": {
+        "basis": "mark_to_market_nav_roll_forward",
+        "formula": "total_pnl = closing_net_assets - opening_net_assets - net_cash_in - net_securities_in_fv",
+        "★公式不是证据": "这条等式按定义恒成立，它成立不能证明资金流与转仓齐全。齐全与否只看下面的 flow_coverage。",
+        "opening_closing_source": "assets_history.csv 的 moomoo_eq + tiger_eq（逐日）"
+      },
+
+      "included_in_total_pnl": {
+        "交易费用": {"included": true, "separable": false},
+        "股息": {"included": true, "separable": false},
+        "税费": {"included": true, "separable": "unknown"},
+        "融资利息": {"included": true, "separable": false},
+        "汇兑影响": {"included": true, "separable": false}
+      },
+      "itemized": {
+        "fees": null,
+        "dividends": null,
+        "taxes": null,
+        "margin_interest": null,
+        "fx_impact": null
+      },
+      "itemized_说明": "★全部为 null 是刻意的。这些项目已经含在 total_pnl 里，若将来补上只能做拆分/重分类，不得与 total_pnl 相加。融资利息目前只有 Tiger 一家有流水、moomoo 与富途为 0 条，三家合计给不出来，故不发布半截数。",
+
+      "flow_coverage": {
+        "moomoo": {
+          "source": "券商 API（get_funding_history / get_acc_cash_flow，每轮只回溯 20 天，累计落 external_flows.csv）",
+          "reconciled": true,
+          "reconciliation_basis": "月结单 monthly_flows.csv 逐月对账，容差 USD 200；2026-11-15 实测 5/5 个月通过（覆盖 2026-05-29 ~ 2026-10-30）",
+          "reconciled_through": "2026-10-30"
+        },
+        "tiger": {
+          "source": "券商 API（同上）",
+          "reconciled": false,
+          "reconciliation_basis": null,
+          "未核对原因": "★对账代码只处理 moomoo（月结单只有 moomoo）。Tiger 的出入金是单一来源，没有第二把尺。API 窗口只回溯约两周，同步中断超过窗口就会永久丢一笔，且账面仍然是平的。"
+        }
+      },
+      "securities_transfer_coverage": {
+        "covered": false,
+        "说明": "无任何券商间/外部证券转移的结构化记录。本期间如发生转仓，total_pnl 会把它整笔吃进去。"
+      },
+
+      "auto_postable": false,
+      "auto_postable_原因": "资金流只有 moomoo 经过二次核对且只到 2026-10-30；Tiger 未核对；证券转移完全不可见。按 CFO 口径，本条只能作参考结果。",
+
+      "gaps": [
+        {"code": "TIGER_FLOWS_UNRECONCILED", "说明": "见 flow_coverage.tiger"},
+        {"code": "SECURITIES_TRANSFER_INVISIBLE", "说明": "见 securities_transfer_coverage"},
+        {"code": "INTEREST_NOT_ITEMIZABLE", "说明": "只有 Tiger 有利息流水（约 20 条），moomoo / 富途 0 条；moomoo 现金长期为负必然计息，该笔利息已折进 total_pnl 无法分离。"},
+        {"code": "FX_IMPACT_NOT_COMPUTED", "说明": "仓库内无汇兑损益计算。"}
+      ]
+    },
+
+    {
+      "result_id": "per:futubull:2026-10-01..2026-10-31",
+      "logical_key": {
+        "account_scope": ["futubull"],
+        "kind": "period",
+        "as_of": null,
+        "period_start": "2026-10-01",
+        "period_end": "2026-10-31"
+      },
+      "content_hash": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
+      "revision": 0,
+      "kind": "period",
+      "account_scope": ["futubull"],
+      "currency": "USD",
+      "normalized": true,
+
+      "status": "unavailable",
+      "period_start": "2026-10-01",
+      "period_end": "2026-10-31",
+      "coverage_through": null,
+
+      "opening_net_assets": null,
+      "closing_net_assets": null,
+      "net_cash_in": null,
+      "net_securities_in_fv": null,
+      "total_pnl": null,
+
+      "unavailable_reason": [
+        "净值序列是**月结单台阶**不是逐日：futubull_nav.csv 自 2024-08-30 起只有 37 个点，2026-09-07 到 2026-11-15 之间整整 69 天没有任何观测点 —— 任意月度区间的首末净值大多取不到。",
+        "出入金完全无记录：external_flows.csv 里 futubull 零条（只有 moomoo 8 条、Tiger 6 条）。",
+        "已知存在实物证券转仓，只存在于 PDF 月结单，未解析。"
+      ],
+      "禁止用法": "★不得视为零收益。该账户的余额（kind=balance）仍然可信可用，只有期间损益不可用。",
+      "gaps": [
+        {"code": "FUTUBULL_PERIOD_UNAVAILABLE", "说明": "见 unavailable_reason"}
+      ]
+    }
+  ],
+
+  "scope_warnings": [
+    "★assets_history.csv 的 combined_eq = moomoo_eq + tiger_eq，**不含富途**（已逐日算术核对）。它绝不能冒充三家合计。富途净值的唯一来源是 futubull_nav.csv，独立且不可与 combined_eq 叠加两次。",
+    "★kind=balance 每轮都会产出新的 as_of，因此逻辑键每轮都不同、revision 恒为 0。revision 只在**同一逻辑键被重述**时才递增（例如回补了历史出入金导致某个已发布 period 结果的金额变化）。同逻辑键 + 同 revision + 不同 content_hash 属于生产端错误，请拒绝而非覆盖，并告知我们。",
+    "★manifest 的 source.complete / coverage 只证明本轮三家券商读数成功，不证明任何期间的外部资金流或转仓齐全。期间完整性只看 period 结果里的 flow_coverage 与 securities_transfer_coverage。",
+    "★日累计 / 月累计语义：本结构只发布**区间结果**（period_start..period_end），不发布累计值。相邻区间不得重叠；不要把多个区间的 total_pnl 与任何累计数相加。"
+  ]
+}

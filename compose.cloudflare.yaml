@@ -1,0 +1,53 @@
+# Optional standalone CFO connector on Mark/Linux, independent of the CFO app project.
+# Use a tunnel dedicated to this host/origin topology. Never reuse an active VM
+# connector's token with a different localhost topology.
+name: cfo-public
+services:
+  prepare:
+    image: node:24-bookworm-slim@sha256:01d566e8d94d8c619591d78652babfccd3c6992a3dffa9ed5ab39e11cf6c70e9
+    user: "0:0"
+    network_mode: none
+    command: ["node", "/prepare.mjs"]
+    volumes:
+      - ./scripts/cloudflare-init.mjs:/prepare.mjs:ro
+      - connector_credentials:/run/cfo-cloudflare
+    secrets: [cloudflare_tunnel_token]
+    restart: "no"
+    mem_limit: 64m
+  connector:
+    image: cloudflare/cloudflared:2026.11.0@sha256:b94b96edf2c9c4360f8879c8580cfaa99077f19c849ec595ca2f711b27d4f344
+    user: "65532:65532"
+    network_mode: host
+    command:
+      - tunnel
+      - --no-autoupdate
+      - --metrics
+      - 127.0.0.1:20260
+      - --loglevel
+      - warn
+      - run
+      - --token-file
+      - /run/cfo-cloudflare/tunnel-token
+    volumes:
+      - connector_credentials:/run/cfo-cloudflare:ro
+    depends_on:
+      prepare: {condition: service_completed_successfully}
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "cloudflared", "tunnel", "--metrics", "127.0.0.1:20260", "ready"]
+      interval: 15s
+      timeout: 5s
+      retries: 4
+      start_period: 30s
+    mem_limit: 256m
+    logging:
+      driver: json-file
+      options: {max-size: "5m", max-file: "2"}
+volumes:
+  connector_credentials:
+secrets:
+  cloudflare_tunnel_token:
+    file: ./secrets/cloudflare-tunnel-token.txt
