@@ -5,7 +5,7 @@ set -eu
 umask 077
 if [ ! -f compose.chatgpt.yaml ] || [ ! -f .env.public ]; then echo '请先部署本版CFO并保留公网配置'; exit 1; fi
 if [ "$(docker inspect -f '{{.State.Health.Status}}' cfo-app-1 2>/dev/null)" != healthy ]; then echo 'CFO应用尚未healthy'; exit 1; fi
-if [ ! -s ../cfo-test/secrets/openai-runtime-key.txt ]; then echo '未找到原测试项目的OpenAI隧道运行凭证，请在NAS本地配置；不要发到聊天'; exit 1; fi
+CFO_TARGET_DIR="$PWD" sh scripts/prepare-chatgpt-credential.sh
 if [ ! -s .env.chatgpt ]; then
  if [ ! -t 0 ]; then echo '请在NAS交互终端输入新的正式隧道ID'; exit 1; fi
  printf '新的正式OpenAI Tunnel ID（不是Cloudflare ID，也不是API key）: '
@@ -16,6 +16,7 @@ if [ ! -s .env.chatgpt ]; then
  printf 'CFO_TUNNEL_ID=%s\n' "$cfo_tunnel_id" > .env.chatgpt
  chmod 600 .env.chatgpt
 fi
+docker compose -f compose.yaml exec -T app node scripts/check-chatgpt.mjs
 docker compose --env-file .env.public --env-file .env.chatgpt \
  -f compose.yaml -f compose.https.yaml -f compose.chatgpt.yaml up -d --no-deps tunnel
 docker compose --env-file .env.public --env-file .env.chatgpt \

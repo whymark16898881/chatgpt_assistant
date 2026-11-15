@@ -27,3 +27,4 @@ playwright-report/
 !/probe/download.mjs
 !/probe/policy.mjs
 !/probe/errors.mjs
+!/docs/CHATGPT_CONNECTION.md

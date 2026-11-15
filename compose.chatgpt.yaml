@@ -21,4 +21,4 @@ services:
     mem_limit: 256m
 secrets:
   openai_runtime_key:
-    file: ../cfo-test/secrets/openai-runtime-key.txt
+    file: ./secrets/openai-runtime-key.txt

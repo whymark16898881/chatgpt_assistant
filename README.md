@@ -13,3 +13,7 @@ Requires Node.js 24+ and Docker. Run `npm ci`, `npm run typecheck`, and `npm run
 ## Data boundaries
 
 Secrets, financial data, source exports, receipts and private backups are not part of this repository. Investment synchronization reads published files and does not contact broker gateways or automatically post financial transactions. Fixtures under `tests/fixtures` are synthetic and cannot be used as real account results.
+
+## ChatGPT screenshot bookkeeping
+
+See [formal ChatGPT connection](docs/CHATGPT_CONNECTION.md). Website availability alone does not install the ChatGPT plugin.

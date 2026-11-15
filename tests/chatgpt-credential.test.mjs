@@ -1,0 +1,11 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {mkdtemp,mkdir,writeFile,readFile,stat,rm,symlink} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import path from 'node:path';
+import {spawnSync} from 'node:child_process';
+const script=path.resolve('scripts/prepare-chatgpt-credential.sh');
+async function fixture(fn){const root=await mkdtemp(path.join(tmpdir(),'cfo-key-check-'));try{const target=path.join(root,'formal CFO'),source=path.join(root,'test-runtime-key');await mkdir(path.join(target,'secrets'),{recursive:true});await writeFile(source,'SYNTHETIC_RUNTIME_CREDENTIAL_ONLY\n');const run=()=>spawnSync('sh',[script],{encoding:'utf8',env:{...process.env,CFO_TARGET_DIR:target,CFO_RUNTIME_KEY_SOURCE:source}});await fn({target,source,run});}finally{await rm(root,{recursive:true,force:true});}}
+test('formal runtime credential is copied locally, private and independent of the old test directory',()=>fixture(async({target,source,run})=>{const r=run();assert.equal(r.status,0);assert.ok(!r.stdout.includes('SYNTHETIC_RUNTIME_CREDENTIAL_ONLY'));const destination=path.join(target,'secrets/openai-runtime-key.txt');assert.equal(await readFile(destination,'utf8'),await readFile(source,'utf8'));assert.equal((await stat(destination)).mode&0o777,0o600);await rm(source);assert.equal(run().status,0);assert.equal(await readFile(destination,'utf8'),'SYNTHETIC_RUNTIME_CREDENTIAL_ONLY\n');}));
+test('existing formal credentials are retained instead of replaced by historical test credentials',()=>fixture(async({target,source,run})=>{const destination=path.join(target,'secrets/openai-runtime-key.txt');await writeFile(destination,'SYNTHETIC_FORMAL_KEEP\n');assert.equal(run().status,0);assert.equal(await readFile(destination,'utf8'),'SYNTHETIC_FORMAL_KEEP\n');assert.equal(await readFile(source,'utf8'),'SYNTHETIC_RUNTIME_CREDENTIAL_ONLY\n');}));
+test('missing or invalid credentials fail without overwriting files or following a destination symlink',()=>fixture(async({target,source,run})=>{await rm(source);assert.notEqual(run().status,0);const destination=path.join(target,'secrets/openai-runtime-key.txt');await writeFile(source,'SYNTHETIC_KEEP\n');await symlink(source,destination);assert.notEqual(run().status,0);assert.equal(await readFile(source,'utf8'),'SYNTHETIC_KEEP\n');}));
