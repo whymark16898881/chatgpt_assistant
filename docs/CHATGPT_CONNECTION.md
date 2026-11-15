@@ -17,15 +17,26 @@ cd /volume1/docker/cfo
 sudo sh scripts/connect-chatgpt.sh
 ```
 
-首次需在 NAS 输入新建的正式 OpenAI Tunnel ID（不是 Cloudflare Tunnel ID）。它不是 API 密钥。不要在聊天中发送运行密钥、网页密码或工具鉴权头。
+默认复用现有 Personal CFO Test 插件的 OpenAI 隧道，无需新建或卸载插件。脚本核对已经确认的原连接器身份与隧道ID，先检查正式工具并准备新容器，再停止旧客户端、关闭它的自动重启，最后启动正式客户端。同一隧道不能同时跑两个客户端，重启NAS也不应恢复旧客户端竞争连接。
 
-正式运行凭证优先保留 `cfo/secrets/openai-runtime-key.txt`；首次可在 NAS 本地从原测试项目复制，权限0600，不打印值、不改原文件。正式容器随后只挂载自己的凭证，不长期依赖旧测试目录。复制凭证不增加原密钥的权限，正式隧道仍需原运行密钥具备相应访问权。没有本地凭证时脚本停止，需在 NAS 本地配置。
+正式运行凭证优先保留 `cfo/secrets/openai-runtime-key.txt`；首次可在 NAS 本地从原测试项目复制，权限0600，不打印值、不改原文件。正式容器只挂载自己的凭证。复制凭证不改变原密钥权限。
 
-脚本通过本地专用凭证调用正式 MCP 只读验收，然后启动独立的正式 OpenAI 连接器。网页 Cloudflare 连接器不受影响，原测试隧道不复用、不自动停用。
+新客户端必须实际出现隧道元数据获取与轮询启动记录，脚本才输出 `CHATGPT_CONNECTOR_SWITCHED`。这只代表连接器启动；真实 ChatGPT 工具调用仍需后续验收。若启动失败或等待超时，脚本停止新客户端、关闭它的自动重启，恢复旧客户端的原重启策略及原运行状态。遇到其他正式隧道配置时停止，绝不覆盖。
+
+手动回退（保留全部账本、票据和凭证）：
+
+```sh
+cd /volume1/docker/cfo
+sudo sh scripts/connect-chatgpt.sh --rollback
+```
+
+原测试应用、数据库、原件均保留；仅原测试隧道客户端停止。网页的 Cloudflare 连接器不受影响。迁移记录位于私有 `secrets/chatgpt-migration`。脚本与 GitHub 更新器互斥运行，遇到升级任务时请完成后重试。
+
+仅当用户明确希望另建独立插件时，才使用 `sudo sh scripts/connect-chatgpt.sh --new`，并在NAS输入新正式OpenAI Tunnel ID；不要把Cloudflare ID、API密钥混入。
 
 ## ChatGPT 端验收
 
-在账号中创建或选择正式 Personal CFO 插件，连接上述正式 OpenAI 隧道；平台设置若有变化，以当前界面为准。将本项目 skill 配置到支持它的对应入口。当前开发窗口不能替用户完成账号内插件安装，技能也不自动向所有设备、所有对话安装。
+迁移成功后，在现有 Personal CFO Test 的管理页点击“刷新工具”，在新对话选择它即可。名称可以暂时保留；判断依据是实际工具变成 `cfo_health`、`cfo_capture` 等，而非旧的 `cfo_probe_*`。无需另建插件。将本项目 skill 配置到支持它的对应入口。当前开发窗口不能替用户完成账号内插件安装，技能也不自动向所有设备、所有对话安装。
 
 先调用 `cfo_health`，确认版本与 `database=reachable`；再查看 `cfo_list_accounts`。正式验收使用用户提供的真实交易凭证及记账意图，不往真实账本写入虚构测试交易。
 

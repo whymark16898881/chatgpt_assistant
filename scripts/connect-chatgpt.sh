@@ -1,8 +1,14 @@
 #!/bin/sh
-# Formal OpenAI MCP tunnel only; Cloudflare web tunnel is a separate project.
+# OpenAI MCP connector; the Cloudflare web tunnel is a separate project.
 set +x
 set -eu
 umask 077
+case "${1:-}" in
+ ''|--reuse-existing) exec sh scripts/migrate-chatgpt-connector.sh;;
+ --rollback) exec sh scripts/migrate-chatgpt-connector.sh --rollback;;
+ --new) ;;
+ *) echo '用法: connect-chatgpt.sh [--reuse-existing|--rollback|--new]'; exit 2;;
+esac
 if [ ! -f compose.chatgpt.yaml ] || [ ! -f .env.public ]; then echo '请先部署本版CFO并保留公网配置'; exit 1; fi
 if [ "$(docker inspect -f '{{.State.Health.Status}}' cfo-app-1 2>/dev/null)" != healthy ]; then echo 'CFO应用尚未healthy'; exit 1; fi
 CFO_TARGET_DIR="$PWD" sh scripts/prepare-chatgpt-credential.sh
