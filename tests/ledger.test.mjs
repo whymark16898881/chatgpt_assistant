@@ -84,7 +84,7 @@ test('database rejects unbalanced journal even if application is bypassed',async
 test('signed sessions reject tampering, wrong password and expiration',()=>{let now=0;const a=createAuth('local-test-password',{now:()=>now});const token=a.issue();assert.ok(a.valid(token));assert.ok(!a.checkPassword('wrong'));assert.ok(!a.valid(token+'x'));now=13*3600000;assert.ok(!a.valid(token));assert.match(a.cookie(token),/HttpOnly; SameSite=Strict/);});
 test('actual MCP calls archive, post and return NAS image bytes through SDK transport',async()=>{
  await reset();const a=await account('MCP现金');const server=financeMcp(pool,docs),client=new Client({name:'test',version:'1'});const [ct,st]=InMemoryTransport.createLinkedPair();await server.connect(st);await client.connect(ct);
- try{const health=await client.callTool({name:'cfo_health',arguments:{}});assert.equal(health.structuredContent.service_version,'0.3.6');const capture=await client.callTool({name:'cfo_capture',arguments:{files:[{download_url:'https://example.com/test.png',file_id:'file-test',file_name:'test.png'}],candidates:[{file_index:0,source_ref:'row:1',payload:{kind:'expense',date:'2026-11-04',amount:'10',account_id:a.id}}]}});assert.equal(capture.isError,undefined);assert.equal(capture.structuredContent.posted_count,1);const d=capture.structuredContent.documents[0];const image=await client.callTool({name:'cfo_read_document',arguments:{document_id:d.id}});assert.equal(image.content[0].type,'image');assert.equal(image.content[0].data,png.toString('base64'));}finally{await client.close();await server.close();}
+ try{const health=await client.callTool({name:'cfo_health',arguments:{}});assert.equal(health.structuredContent.service_version,'0.3.7');const capture=await client.callTool({name:'cfo_capture',arguments:{files:[{download_url:'https://example.com/test.png',file_id:'file-test',file_name:'test.png'}],candidates:[{file_index:0,source_ref:'row:1',payload:{kind:'expense',date:'2026-11-04',amount:'10',account_id:a.id}}]}});assert.equal(capture.isError,undefined);assert.equal(capture.structuredContent.posted_count,1);const d=capture.structuredContent.documents[0];const image=await client.callTool({name:'cfo_read_document',arguments:{document_id:d.id}});assert.equal(image.content[0].type,'image');assert.equal(image.content[0].data,png.toString('base64'));}finally{await client.close();await server.close();}
 });
 test('journal cannot be overwritten or deleted; audit records before/after draft facts',async()=>{
  await reset();const a=await account('审计银行');const d=(await record({kind:'expense',account_id:a.id})).event;
@@ -130,4 +130,22 @@ test('interest reversal removes the cost and unconfirmed debt marks leverage cov
  await reset();const bank=await account('银行'),loan=await account('未确认借呗','loan');
  const event=(await record({kind:'expense',account_id:bank.id,amount:'10',category:'expense.interest'})).event;await reverseEvent(pool,event.id,{date:'2026-11-03',reason:'利息重复'});
  const r=await reports(pool,'2026-11');assert.equal(r.financing.monthly_interest_expense,'0.00');assert.equal(r.leverage.coverage_complete,false);assert.equal(r.leverage.assets_to_net_worth,null);assert.equal(r.leverage.asset_liability_ratio_percent,null);assert.equal(r.leverage.debt_accounts.find(a=>a.account_id===loan.id).opening_confirmed,false);
+});
+test('MCP batch summary spans groups, deduplicates IDs, refreshes resolved drafts and never creates entries',async()=>{
+ await reset();const a=await account('synthetic batch account');
+ const first=(await record({kind:'income',account_id:a.id,amount:'0.12',date:'2026-11-04'})).event;
+ const second=(await record({kind:'income',account_id:a.id,amount:'0.13',date:'2026-11-05'})).event;
+ const draft=(await record({kind:'expense',currency:'CNY',amount:'125.10',date:'2026-11-05'})).event;
+ const server=financeMcp(pool,docs),client=new Client({name:'batch-summary-check',version:'1'});const [ct,st]=InMemoryTransport.createLinkedPair();await server.connect(st);await client.connect(ct);
+ try{
+  const event_ids=[first.id,second.id,draft.id,first.id],before=(await pool.query('SELECT count(*) FROM cfo_entries')).rows[0].count;
+  let response=await client.callTool({name:'cfo_batch_summary',arguments:{event_ids}});assert.ok(!response.isError);let s=response.structuredContent;
+  assert.equal(s.event_count,3);assert.equal(s.counts.draft,1);assert.equal(s.posted.income_cny,'0.25');assert.equal(s.by_currency[0].pending_expense,'125.10');assert.equal((await pool.query('SELECT count(*) FROM cfo_entries')).rows[0].count,before);
+  await reviseAndPost(pool,draft.id,{revision:draft.revision,payload:{...draft.payload,account_id:a.id}});
+  response=await client.callTool({name:'cfo_batch_summary',arguments:{event_ids}});assert.ok(!response.isError);s=response.structuredContent;assert.equal(s.counts.draft,0);assert.equal(s.counts.posted,3);assert.equal(s.posted.expense_cny,'125.10');assert.equal(s.posted.net_cny,'-124.85');assert.equal(s.by_currency[0].pending_expense,'0.00');
+  const missing=await client.callTool({name:'cfo_batch_summary',arguments:{event_ids:[first.id,randomUUID()]}});assert.equal(missing.isError,true);
+ }finally{await client.close();await server.close();}
+});
+test('explicit screenshot currency conflicting with an account stays draft',async()=>{
+ await reset();const a=await account('synthetic SGD bank','bank','SGD');const r=await record({kind:'expense',account_id:a.id,currency:'CNY',amount:'5',fx_rate:'5',fx_source:'synthetic test quote'});assert.equal(r.event.status,'draft');assert.match(r.event.issues.join(),/币种不符/);
 });

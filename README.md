@@ -17,3 +17,5 @@ Secrets, financial data, source exports, receipts and private backups are not pa
 ## ChatGPT screenshot bookkeeping
 
 See [formal ChatGPT connection](docs/CHATGPT_CONNECTION.md). Website availability alone does not install the ChatGPT plugin.
+
+For unified receipts across multiple attachments, see [batch bookkeeping](docs/BATCH_BOOKKEEPING.md).
