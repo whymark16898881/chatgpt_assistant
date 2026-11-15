@@ -29,3 +29,4 @@ playwright-report/
 !/probe/errors.mjs
 !/docs/CHATGPT_CONNECTION.md
 !/docs/BATCH_BOOKKEEPING.md
+!/docs/DATA_MODEL_REVIEW.md
