@@ -84,7 +84,7 @@ test('database rejects unbalanced journal even if application is bypassed',async
 test('signed sessions reject tampering, wrong password and expiration',()=>{let now=0;const a=createAuth('local-test-password',{now:()=>now});const token=a.issue();assert.ok(a.valid(token));assert.ok(!a.checkPassword('wrong'));assert.ok(!a.valid(token+'x'));now=13*3600000;assert.ok(!a.valid(token));assert.match(a.cookie(token),/HttpOnly; SameSite=Strict/);});
 test('actual MCP calls archive, post and return NAS image bytes through SDK transport',async()=>{
  await reset();const a=await account('MCP现金');const server=financeMcp(pool,docs),client=new Client({name:'test',version:'1'});const [ct,st]=InMemoryTransport.createLinkedPair();await server.connect(st);await client.connect(ct);
- try{const health=await client.callTool({name:'cfo_health',arguments:{}});assert.equal(health.structuredContent.service_version,'0.3.7');const capture=await client.callTool({name:'cfo_capture',arguments:{files:[{download_url:'https://example.com/test.png',file_id:'file-test',file_name:'test.png'}],candidates:[{file_index:0,source_ref:'row:1',payload:{kind:'expense',date:'2026-11-04',amount:'10',account_id:a.id}}]}});assert.equal(capture.isError,undefined);assert.equal(capture.structuredContent.posted_count,1);const d=capture.structuredContent.documents[0];const image=await client.callTool({name:'cfo_read_document',arguments:{document_id:d.id}});assert.equal(image.content[0].type,'image');assert.equal(image.content[0].data,png.toString('base64'));}finally{await client.close();await server.close();}
+ try{const health=await client.callTool({name:'cfo_health',arguments:{}});assert.equal(health.structuredContent.service_version,'0.3.8');const capture=await client.callTool({name:'cfo_capture',arguments:{files:[{download_url:'https://example.com/test.png',file_id:'file-test',file_name:'test.png'}],candidates:[{file_index:0,source_ref:'row:1',payload:{kind:'expense',date:'2026-11-04',amount:'10',account_id:a.id}}]}});assert.equal(capture.isError,undefined);assert.equal(capture.structuredContent.posted_count,1);const d=capture.structuredContent.documents[0];const image=await client.callTool({name:'cfo_read_document',arguments:{document_id:d.id}});assert.equal(image.content[0].type,'image');assert.equal(image.content[0].data,png.toString('base64'));}finally{await client.close();await server.close();}
 });
 test('journal cannot be overwritten or deleted; audit records before/after draft facts',async()=>{
  await reset();const a=await account('审计银行');const d=(await record({kind:'expense',account_id:a.id})).event;
@@ -148,4 +148,26 @@ test('MCP batch summary spans groups, deduplicates IDs, refreshes resolved draft
 });
 test('explicit screenshot currency conflicting with an account stays draft',async()=>{
  await reset();const a=await account('synthetic SGD bank','bank','SGD');const r=await record({kind:'expense',account_id:a.id,currency:'CNY',amount:'5',fx_rate:'5',fx_source:'synthetic test quote'});assert.equal(r.event.status,'draft');assert.match(r.event.issues.join(),/币种不符/);
+});
+test('MCP field coverage is read-only, paginated, provenance-aware and keeps evidence distinct from transactions',async()=>{
+ await reset();const a=await account('synthetic coverage bank');
+ const posted=(await record({kind:'income',amount:'0.21',account_id:a.id,date:'2026-11-05'})).event;
+ const draft=(await record({kind:'expense',amount:'15.40',currency:'CNY',date:undefined})).event;
+ const supporting=await docs.saveBytes({file_name:'synthetic-support.png'},{bytes:png,mime:'image/png'});
+ await pool.query('INSERT INTO cfo_event_sources(document_id,source_ref,event_id) VALUES($1,$2,$3)',[supporting.id,'page1:row1',posted.id]);
+ await docs.saveBytes({file_name:'synthetic-unlinked.pdf'},{bytes:Buffer.from('synthetic opaque PDF marker; not a parsing test'),mime:'application/pdf'});
+ async function snapshot(){return JSON.stringify({events:(await pool.query('SELECT id,payload,status,revision FROM cfo_events ORDER BY id')).rows,counts:(await pool.query('SELECT (SELECT count(*) FROM cfo_entries) AS entries,(SELECT count(*) FROM cfo_lines) AS lines,(SELECT count(*) FROM cfo_audit) AS audit,(SELECT count(*) FROM cfo_documents) AS documents')).rows});}
+ const before=await snapshot(),server=financeMcp(pool,docs),client=new Client({name:'field-coverage-check',version:'1'});const [ct,st]=InMemoryTransport.createLinkedPair();
+ try{
+  await server.connect(st);await client.connect(ct);
+  const tools=await client.listTools();assert.equal(tools.tools.find(t=>t.name==='cfo_field_coverage').annotations.readOnlyHint,true);
+  let r=await client.callTool({name:'cfo_field_coverage',arguments:{limit:1}});assert.ok(!r.isError,JSON.stringify(r.structuredContent));let s=r.structuredContent;
+  assert.equal(s.scope.total_matching_transactions,2);assert.equal(s.scope.returned,1);assert.equal(s.scope.has_more,true);assert.equal(s.scope.complete_for_scope,false);assert.equal(s.document_summary.total_stored_documents,4);assert.equal(s.document_summary.without_transaction_links,1);assert.equal(s.originals_read,false);assert.equal(s.financial_transaction_posted,false);
+  const firstId=s.transactions[0].transaction_id;r=await client.callTool({name:'cfo_field_coverage',arguments:{limit:1,offset:s.scope.next_offset}});assert.ok(!r.isError);assert.notEqual(r.structuredContent.transactions[0].transaction_id,firstId);
+  r=await client.callTool({name:'cfo_field_coverage',arguments:{event_ids:[posted.id,posted.id.toUpperCase(),draft.id]}});assert.ok(!r.isError);s=r.structuredContent;assert.equal(s.scope.complete_for_scope,true);
+  const p=s.transactions.find(t=>t.transaction_id===posted.id),d=s.transactions.find(t=>t.transaction_id===draft.id);
+  assert.equal(p.fields.find(f=>f.key==='document_ids').value.length,2);assert.equal(p.fields.find(f=>f.key==='financial_category').origin,'journal');assert.equal(p.fields.find(f=>f.key==='financial_category').value[0].key,'income.other');assert.equal(p.fields.find(f=>f.key==='occurred_on').field_evidence_status,'not_tracked');assert.equal(d.fields.find(f=>f.key==='occurred_on').state,'not_recorded');assert.equal(d.fields.find(f=>f.key==='meal_type').state,'not_supported');
+  const missing=randomUUID();r=await client.callTool({name:'cfo_field_coverage',arguments:{event_ids:[posted.id,missing]}});assert.ok(!r.isError);assert.deepEqual(r.structuredContent.scope.missing_requested_ids,[missing]);assert.equal(r.structuredContent.scope.complete_for_scope,false);
+  assert.equal(await snapshot(),before);
+ }finally{await client.close();await server.close();}
 });
