@@ -23,3 +23,5 @@ For unified receipts across multiple attachments, see [batch bookkeeping](docs/B
 ## Receipt structure and drilldown
 
 Version 0.4.0 adds versioned recognition facts, hierarchical analysis categories and the authenticated **分类与凭证** view: posted income/expense → category → transaction → original document. Financial classifications remain tied to actual journal accounts; analysis labels do not rewrite past postings. See [normalized recognition](docs/NORMALIZED_RECOGNITION.md) and [field coverage](docs/FIELD_COVERAGE.md).
+
+Ordinary receipts and expenses use personal-wide settlement aggregates in 0.4.1: a specific bank or wallet is optional, currency is explicit, credit purchases remain liabilities, and unknown settlement stays pending. The aggregates are accounting nodes, not verified institution balances.

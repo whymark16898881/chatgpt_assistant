@@ -5,6 +5,9 @@ CREATE TABLE IF NOT EXISTS cfo_accounts (
   is_cash boolean NOT NULL DEFAULT false, opening_confirmed boolean NOT NULL DEFAULT false,
   system_key text UNIQUE, created_at timestamptz NOT NULL DEFAULT now(), UNIQUE(name,currency)
 );
+-- Statement-wide settlement nodes are accounting aggregates, not identified bank accounts.
+ALTER TABLE cfo_accounts ADD COLUMN IF NOT EXISTS summary_kind text CHECK(summary_kind IN ('cash','payable'));
+CREATE UNIQUE INDEX IF NOT EXISTS cfo_summary_currency ON cfo_accounts(currency,summary_kind) WHERE summary_kind IS NOT NULL;
 CREATE TABLE IF NOT EXISTS cfo_documents (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(), sha256 text UNIQUE NOT NULL,
   filename text NOT NULL, mime_type text NOT NULL, bytes integer NOT NULL CHECK(bytes>0),
