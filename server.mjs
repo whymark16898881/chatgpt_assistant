@@ -12,6 +12,7 @@ import {createAuth,equalSecret} from './lib/auth.mjs';
 import {createAccount,listAccounts,listEvents,recordEvent,requestKey,reviseAndPost,reverseEvent,discardDraft,categories,eventSchema} from './lib/ledger.mjs';
 import {reports} from './lib/reports.mjs';
 import {investmentView} from './lib/investment-view.mjs';
+import {analysisOverview,analysisQuerySchema,transactionDetail} from './lib/analysis.mjs';
 
 const dev=process.argv.includes('--dev');
 const pool=await connectDatabase();
@@ -60,6 +61,8 @@ app.get('/api/state',route(async req=>{
  const [accounts,events,docs,report,cats,investments]=await Promise.all([listAccounts(pool),listEvents(pool),documents.list(),reports(pool,String(month)),categories(pool),investmentView(pool,{month:String(month)})]);
  return{accounts,events,documents:docs,report,categories:cats,investments};
 }));
+app.get('/api/analysis',route(req=>analysisOverview(pool,analysisQuerySchema.parse({...req.query,unclassified:req.query.unclassified==='true',unknown_merchant:req.query.unknown_merchant==='true',limit:req.query.limit===undefined?30:Number(req.query.limit),offset:req.query.offset===undefined?0:Number(req.query.offset)}))));
+app.get('/api/transactions/:id',route(req=>transactionDetail(pool,uuid(req.params.id))));
 app.post('/api/accounts',route(req=>createAccount(pool,req.body)));
 app.post('/api/events',route(async req=>{
  const request_key=z.string().min(8).max(200).parse(req.body.request_key);

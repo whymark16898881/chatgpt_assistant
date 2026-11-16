@@ -1,5 +1,6 @@
 'use client';
 import {useEffect,useState,useRef,type FormEvent} from 'react';
+import AnalysisPanel from './analysis-panel';
 
 type Account={id:string;name:string;kind:string;currency:string;balance:string;cny_balance:string;opening_confirmed:boolean;is_cash:boolean};
 type Payload={kind:string;date?:string;amount?:string;account_id?:string;counter_account_id?:string;counter_amount?:string;fx_rate?:string;counter_fx_rate?:string;fx_source?:string;category?:string;description?:string;merchant?:string;external_id?:string;account_hint?:string;region?:string;needs_review?:string[]};
@@ -13,7 +14,7 @@ type SourceStatus={connected:boolean;last_attempt?:{status:string;code:string;at
 type AccountResult={account_scope:string[];as_of?:string;decomposable?:boolean;assets_total?:string|null;liabilities_total?:string|null;net_assets?:string;period_start?:string;period_end?:string;total_pnl?:string|null;status?:string};
 type Investments={account_results?:{connected:boolean;balances:AccountResult[];periods:AccountResult[]};source_status?:SourceStatus;connected:boolean;note:string;reported_net_assets_cny:string|null;sources:{refresh_policy?:string;next_expected_by?:string|null;source:string;as_of:string;stale:boolean;warnings:string[];accounts:InvestmentAccount[];net_assets_by_currency:{currency:string;amount:string|null}[]}[]};
 type State={investments:Investments;accounts:Account[];events:Entry[];documents:Doc[];report:Report;categories:{key:string;name:string;account_group:string}[]};
-type View='overview'|'inbox'|'transactions'|'accounts'|'reports'|'investments';
+type View='overview'|'inbox'|'transactions'|'accounts'|'reports'|'investments'|'analysis';
 const kinds:Record<string,string>={income:'收入',expense:'支出',transfer:'账户转账',reimbursement_advance:'报销垫付',reimbursement_received:'报销到账',opening:'期初余额',valuation_gain:'投资估值增加',valuation_loss:'投资估值减少'};
 const accountKinds:Record<string,string>={bank:'银行 / 支付账户',cash:'现金',investment:'投资总额',receivable:'应收款 / 待报销',credit_card:'信用卡',loan:'贷款',other_asset:'其他资产',other_liability:'其他负债'};
 const statuses:Record<string,string>={draft:'待处理',posted:'已入账',reversed:'已冲销',discarded:'已忽略'};
@@ -44,7 +45,7 @@ export default function Page(){
  });}
  const pending=data?.events.filter(e=>e.status==='draft')||[];
  const visible=(data?.events||[]).filter(e=>(filter==='all'||e.status===filter)&&[e.payload.description,e.payload.merchant,kinds[e.payload.kind],account(e.payload.account_id)?.name,e.filename].some(x=>(x||'').toLowerCase().includes(search.toLowerCase())));
- const title:Record<View,string>={overview:'财务总览',inbox:'资料收件箱',transactions:'交易账本',accounts:'账户与期初',reports:'财务报表',investments:'投资资产'};
+ const title:Record<View,string>={overview:'财务总览',inbox:'资料收件箱',transactions:'交易账本',accounts:'账户与期初',reports:'财务报表',investments:'投资资产',analysis:'分类与凭证'};
  if(loggedIn===null)return <main className="loading"><div className="brand-mark">私</div><p>{error||'正在连接你的账本…'}</p></main>;
  if(!loggedIn)return <main className="login"><section className="login-story"><div className="brand"><span className="brand-mark">私</span><span>私账 <small>PERSONAL CFO</small></span></div><div><span className="eyebrow">YOUR PERSONAL FINANCE, IN FOCUS</span><h1>每一份凭证，<br/>都有清楚的去向。</h1><p>记录收入与支出，整理资产与负债。<br/>用一份可追溯的账本，理解自己的财务状况。</p><div className="login-note">个人账本 · 人民币报表 · 原件可追溯</div></div><small>从 2026 年 11 月 1 日开始，认真记录。</small></section><section className="login-form"><form onSubmit={e=>{e.preventDefault();void run(async()=>{await api('/api/login',{password});setPassword('');await load();});}}><span className="eyebrow">WELCOME BACK</span><h2>打开你的账本</h2><p>使用你在 NAS 上设置的访问密码。</p><label>访问密码<input type="password" autoComplete="current-password" value={password} onChange={e=>setPassword(e.target.value)} required/></label>{error&&<p role="alert" className="error">{error}</p>}<button className="primary" disabled={busy}>{busy?'正在验证…':'进入私账 →'}</button><small>账本内容仅在登录后可见。</small></form></section></main>;
  if(!data)return <main className="loading"><p role="alert">{error||'正在读取账本…'}</p><button onClick={()=>void load()}>重试</button></main>;
@@ -83,6 +84,7 @@ export default function Page(){
  {data.investments.account_results?.connected&&<p className="muted">已报告负债包含融资余额及空头证券市值；尚缺应计未入账利息等项目，不代表完整个人负债。</p>}
  <section className="panel"><h2>投资损益</h2>{data.investments.account_results?.periods.length?<div className="table-wrap"><table><thead><tr><th>期间</th><th>账户范围</th><th>来源参考结果</th><th>状态</th></tr></thead><tbody>{data.investments.account_results.periods.map((p,i)=><tr key={i}><td>{p.period_start} 至 {p.period_end}</td><td>{p.account_scope.join(' + ')}</td><td>{p.total_pnl==null?'不可用':money(p.total_pnl)+' USD'}</td><td>{p.status==='unavailable'?'损益资料不足':p.status==='pending_account_mapping'?'已核对结果，待账户匹配':'未核对参考，不计利润'}</td></tr>)}</tbody></table></div>:<p>待接入已核对的期间投资损益，当前不按零收益处理。</p>}<p className="muted">投资损益纳入利润表；未实现的估值变动单列。账户间入金、出金和股票转仓不算收益。持仓和交易分析继续由金融组长项目负责。</p></section>
  </>}
+ {view==='analysis'&&<AnalysisPanel key={month} month={month} onSessionExpired={()=>{setLoggedIn(false);setData(null);}}/>}
  {view==='reports'&&<>{debtSummary()}<div className="report-heading"><span className="badge posted">{r.balance_sheet.balanced?'账面平衡':'请核对账目'}</span><span className="badge posted">{r.cash_flow.reconciled?'现金流已勾稽':'请核对现金流'}</span><span className="muted">管理口径 · 历史汇率账面值</span></div><div className="reports-grid">{statement('利润表 · 收入',r.income_statement.income,'收入合计',r.income_statement.total_income)}{statement('利润表 · 费用',r.income_statement.expenses,'费用合计',r.income_statement.total_expenses)}{statement('资产负债表 · 资产',r.balance_sheet.assets.map(a=>({name:a.name,amount:a.balance})),'资产合计',r.balance_sheet.total_assets)}{statement('资产负债表 · 负债',r.balance_sheet.liabilities.map(a=>({name:a.name,amount:a.balance})),'负债合计',r.balance_sheet.total_liabilities)}{statement('现金流量表',r.cash_flow.buckets.map(b=>({name:bucketNames[b.bucket]||b.bucket,amount:b.amount})),'现金净变动',r.cash_flow.net_change)}<section className="panel statement"><h3>本月与期末</h3>{[{name:'本月账面利润',amount:r.income_statement.net_income},{name:'期末账面净资产',amount:r.balance_sheet.net_worth},{name:'期初投入净资产',amount:r.balance_sheet.opening_equity},{name:'累计账面利润',amount:r.balance_sheet.retained_profit},{name:'本月期初现金',amount:r.cash_flow.opening},{name:'本月期末现金',amount:r.cash_flow.closing}].map(a=><div className="statement-row" key={a.name}><span>{a.name}</span><b>¥ {money(a.amount)}</b></div>)}</section></div></>}
  <footer><span>私账 · PERSONAL CFO</span><div>{r.warnings.map((w,i)=><p key={i}>{w}</p>)}</div></footer>
  </main>

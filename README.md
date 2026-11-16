@@ -19,3 +19,7 @@ Secrets, financial data, source exports, receipts and private backups are not pa
 See [formal ChatGPT connection](docs/CHATGPT_CONNECTION.md). Website availability alone does not install the ChatGPT plugin.
 
 For unified receipts across multiple attachments, see [batch bookkeeping](docs/BATCH_BOOKKEEPING.md).
+
+## Receipt structure and drilldown
+
+Version 0.4.0 adds versioned recognition facts, hierarchical analysis categories and the authenticated **分类与凭证** view: posted income/expense → category → transaction → original document. Financial classifications remain tied to actual journal accounts; analysis labels do not rewrite past postings. See [normalized recognition](docs/NORMALIZED_RECOGNITION.md) and [field coverage](docs/FIELD_COVERAGE.md).

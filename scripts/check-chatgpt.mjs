@@ -12,7 +12,7 @@ try{
  const result=health.structuredContent;
  if(health.isError||result?.service_version!==VERSION||result.database!=='reachable')throw new Error('正式MCP健康检查未通过');
  const tools=(await client.listTools()).tools.map(t=>t.name);
- const required=['cfo_list_accounts','cfo_capture','cfo_read_document','cfo_record_existing_document','cfo_resolve_transaction','cfo_report','cfo_investments','cfo_batch_summary','cfo_field_coverage'];
+ const required=['cfo_list_accounts','cfo_capture','cfo_read_document','cfo_record_existing_document','cfo_resolve_transaction','cfo_report','cfo_investments','cfo_batch_summary','cfo_field_coverage','cfo_get_transaction','cfo_set_recognition','cfo_drilldown'];
  if(required.some(name=>!tools.includes(name))||tools.some(name=>name.startsWith('cfo_probe_')))throw new Error('正式MCP工具清单不完整或仍为归档探针');
  console.log(JSON.stringify({event:'formal_mcp_local_check',status:'ready',service_version:result.service_version,database:result.database,tool_count:tools.length,batch_capture_max_files:3,financial_transaction_posted:false,chatgpt_plugin_verified:false}));
 }finally{await client.close();}
