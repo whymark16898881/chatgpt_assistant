@@ -13,6 +13,11 @@ CREATE TABLE IF NOT EXISTS cfo_documents (
   filename text NOT NULL, mime_type text NOT NULL, bytes integer NOT NULL CHECK(bytes>0),
   stored_path text NOT NULL, archived_at timestamptz NOT NULL DEFAULT now()
 );
+-- Recycle bin and permanent original removal preserve journal/reference identity.
+ALTER TABLE cfo_documents ADD COLUMN IF NOT EXISTS trashed_at timestamptz;
+ALTER TABLE cfo_documents ADD COLUMN IF NOT EXISTS purge_requested_at timestamptz;
+ALTER TABLE cfo_documents ADD COLUMN IF NOT EXISTS file_removed_at timestamptz;
+ALTER TABLE cfo_documents ADD COLUMN IF NOT EXISTS lifecycle_revision integer NOT NULL DEFAULT 0;
 CREATE TABLE IF NOT EXISTS cfo_events (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(), document_id uuid REFERENCES cfo_documents,
   source_ref text NOT NULL, request_key text UNIQUE NOT NULL,

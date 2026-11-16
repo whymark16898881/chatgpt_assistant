@@ -12,6 +12,7 @@ import {createAuth,equalSecret} from './lib/auth.mjs';
 import {createAccount,listAccounts,listEvents,recordEvent,requestKey,reviseAndPost,reverseEvent,discardDraft,categories,eventSchema} from './lib/ledger.mjs';
 import {reports} from './lib/reports.mjs';
 import {investmentView} from './lib/investment-view.mjs';
+import {documentActionSchema,documentApplySchema} from './lib/document-lifecycle.mjs';
 import {analysisOverview,analysisQuerySchema,transactionDetail} from './lib/analysis.mjs';
 
 const dev=process.argv.includes('--dev');
@@ -74,6 +75,9 @@ app.post('/api/events',route(async req=>{
 app.post('/api/events/:id/resolve',route(req=>reviseAndPost(pool,uuid(req.params.id),req.body)));
 app.post('/api/events/:id/discard',route(req=>discardDraft(pool,uuid(req.params.id))));
 app.post('/api/events/:id/reverse',route(req=>reverseEvent(pool,uuid(req.params.id),req.body)));
+app.get('/api/documents',route(req=>documents.inventory({status:req.query.status||'active',limit:Number(req.query.limit||25),offset:Number(req.query.offset||0)})));
+app.post('/api/documents/actions/preview',route(req=>documents.preview(documentActionSchema.parse(req.body))));
+app.post('/api/documents/actions/apply',route(req=>documents.apply(documentApplySchema.parse(req.body))));
 app.get('/api/documents/:id',route(async(req,res)=>{
  const d=await documents.read(uuid(req.params.id));res.setHeader('Content-Type',d.mime_type);
  res.setHeader('Content-Disposition',`attachment; filename*=UTF-8''${encodeURIComponent(d.filename)}`);res.send(d.bytes);
@@ -81,6 +85,8 @@ app.get('/api/documents/:id',route(async(req,res)=>{
 app.use('/api',(req,res)=>res.status(404).json({error:'接口不存在'}));
 app.use((error,req,res,next)=>{
  if(res.headersSent)return next(error);
+ if(error.code==='DOCUMENT_PURGED')return res.status(410).json({error:error.message});
+ if(error.code==='DOCUMENT_SELECTION_CHANGED')return res.status(409).json({error:error.message});
  const message=error.name==='ZodError'?'字段格式不正确':error.code?'操作未完成，请检查服务状态':error.message;
  res.status(400).json({error:message});
 });

@@ -8,3 +8,5 @@
 .investment-account{margin-top:26px;padding-top:22px;border-top:1px solid #e4e9e1}.investment-account .numeric small{display:block}.investment-account>p{margin:8px 0 14px}
 
 .analysis-chips{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}.analysis-detail{max-width:920px;max-height:90vh;overflow:auto}.analysis-detail h3{margin-top:24px}.analysis-source{padding:12px 0;border-bottom:1px solid #edf0f2}.analysis-source small{display:block;margin-top:5px}.analysis-detail small{overflow-wrap:anywhere}
+
+.document-info{min-width:0;flex:1}.document-info b{overflow-wrap:anywhere}.document-info small{display:block}.document input[type=checkbox]{width:17px;flex:0 0 17px}.document-tools{margin-bottom:20px;flex-wrap:wrap}.document .doc-actions{display:flex;gap:8px;flex-wrap:wrap;white-space:normal}.document-confirm li{overflow-wrap:anywhere}.document-confirm .checkbox{align-items:flex-start}.document-confirm .checkbox input{width:18px;flex:0 0 18px}@media(max-width:600px){.document{flex-wrap:wrap}.document .doc-actions{width:100%;padding-left:25px}.document-tools{gap:12px}.document-confirm{max-height:90dvh;overflow:auto}}
