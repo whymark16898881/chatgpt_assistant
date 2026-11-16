@@ -59,3 +59,11 @@ sudo journalctl -u cfo-github-update.service -n 80 --no-pager
 - `Open`、`tailscale`：其他项目，不属于 CFO 清理范围。
 
 本说明不执行删除，不删除 Docker 数据卷、只读共享或上游 `_staging`。
+
+## 已验收的 CFO 网页入口与数据路径
+
+CFO 网页已使用 Mark 宿主上的独立 Cloudflare Tunnel（cfo-mark / cfo-public-connector-1），域名为 `cfo.markalpha.net`。网页源站是同宿主 HTTP `127.0.0.1:3200`，映射容器3000；该宿主映射没有对LAN开放。VM `192.168.1.111` 的 localhost 不是此源站，也无法直接访问这个仅回环绑定的端口。
+
+CFO 未通过宿主80/443的NAS界面或自签反代提供网页源站，不需要为这条现有路由配置 `noTLSVerify`。公网使用HTTPS，应用已有密码登录和受保护账本接口；原入口不因 finteam 建立另一条VM隧道而迁移。保留现有子域名DNS及隧道路由，不把同一hostname同时接到VM隧道。
+
+Samba只读共享是独立数据路径：已验证的14文件导出通过宿主挂载进入采集器，不经过网页隧道。`account_results_count`是结果条数，不能当成导出文件数。
