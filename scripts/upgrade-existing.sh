@@ -57,5 +57,8 @@ done
 if [ -n "$cfo_active_collector" ] && [ -s .env.portfolio ]; then
  docker compose --env-file .env.portfolio -f compose.yaml -f compose.portfolio.yaml up -d --no-deps --no-build --force-recreate portfolio-sync
 fi
+if ! CFO_TARGET_DIR="$cfo_target" CFO_PROJECT_NAME="$COMPOSE_PROJECT_NAME" sh "$cfo_source/scripts/reconnect-chatgpt.sh"; then
+ echo 'MCP_RECONNECT_PENDING：网站升级已完成，正式插件连接仍需检查。'
+fi
 printf 'UPGRADE_READY: 0.3.8。源码备份：%s\n' "$cfo_source_backup"
 echo '原密码、数据库、票据、公网配置和连接器保留。请验证网页及采集器；账户结果出口和自动损益仍需实际验收。'

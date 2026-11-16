@@ -88,6 +88,9 @@ rollback(){
  if [ -n "$collector_image" ] && [ -s "$root/.env.portfolio" ]; then
   docker compose --project-directory "$root" -p "$project" --env-file "$root/.env.portfolio" -f "$root/compose.yaml" -f "$root/compose.portfolio.yaml" -f "$rollback_dir/images.yaml" up -d --no-deps --no-build portfolio-sync || return 1
  fi
+ if [ -f "$candidate/scripts/reconnect-chatgpt.sh" ]; then
+  CFO_TARGET_DIR="$root" CFO_PROJECT_NAME="$project" sh "$candidate/scripts/reconnect-chatgpt.sh" || echo 'MCP_RECONNECT_PENDING：旧网站已恢复，插件连接仍需检查。'
+ fi
  echo 'OLD_IMAGES_RESTORED：已恢复旧服务镜像，数据库未回退；请核验网页健康。'
 }
 printf '%s\n' "$sha" > "$state/in-progress"
