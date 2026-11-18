@@ -183,3 +183,9 @@ CREATE INDEX IF NOT EXISTS cfo_recognition_items_version ON cfo_recognition_item
 CREATE INDEX IF NOT EXISTS cfo_field_observation_document ON cfo_field_observations(document_id);
 
 ALTER TABLE cfo_recognition_versions ADD COLUMN IF NOT EXISTS core_basis_hash text NOT NULL DEFAULT '';
+
+-- Deleted transactions retain their sources and immutable financial history.
+ALTER TABLE cfo_events ADD COLUMN IF NOT EXISTS deleted_at timestamptz;
+ALTER TABLE cfo_events ADD COLUMN IF NOT EXISTS deleted_status text CHECK(deleted_status IN ('draft','posted','reversed','discarded'));
+ALTER TABLE cfo_events ADD COLUMN IF NOT EXISTS deleted_reversal_id uuid REFERENCES cfo_entries(id);
+CREATE INDEX IF NOT EXISTS cfo_deleted_events ON cfo_events(deleted_at) WHERE deleted_at IS NOT NULL;

@@ -12,6 +12,7 @@ import {createAuth,equalSecret} from './lib/auth.mjs';
 import {createAccount,listAccounts,listEvents,recordEvent,requestKey,reviseAndPost,reverseEvent,discardDraft,categories,eventSchema} from './lib/ledger.mjs';
 import {reports} from './lib/reports.mjs';
 import {investmentView} from './lib/investment-view.mjs';
+import {transactionActionSchema,transactionApplySchema,previewTransactionAction,applyTransactionAction} from './lib/transaction-lifecycle.mjs';
 import {documentActionSchema,documentApplySchema} from './lib/document-lifecycle.mjs';
 import {analysisOverview,analysisQuerySchema,transactionDetail} from './lib/analysis.mjs';
 
@@ -59,10 +60,12 @@ const route=fn=>async(req,res,next)=>{try{const result=await fn(req,res);if(!res
 const uuid=id=>z.uuid().parse(id);
 app.get('/api/state',route(async req=>{
  const month=req.query.month||new Date(Date.now()+8*3600000).toISOString().slice(0,7);
- const [accounts,events,docs,report,cats,investments]=await Promise.all([listAccounts(pool),listEvents(pool),documents.list(),reports(pool,String(month)),categories(pool),investmentView(pool,{month:String(month)})]);
- return{accounts,events,documents:docs,report,categories:cats,investments};
+ const [accounts,events,docs,report,cats,investments,deleted_events]=await Promise.all([listAccounts(pool),listEvents(pool),documents.list(),reports(pool,String(month)),categories(pool),investmentView(pool,{month:String(month)}),listEvents(pool,{onlyDeleted:true})]);
+ return{accounts,events,deleted_events,documents:docs,report,categories:cats,investments};
 }));
 app.get('/api/analysis',route(req=>analysisOverview(pool,analysisQuerySchema.parse({...req.query,unclassified:req.query.unclassified==='true',unknown_merchant:req.query.unknown_merchant==='true',limit:req.query.limit===undefined?30:Number(req.query.limit),offset:req.query.offset===undefined?0:Number(req.query.offset)}))));
+app.post('/api/transactions/actions/preview',route(req=>previewTransactionAction(pool,transactionActionSchema.parse(req.body))));
+app.post('/api/transactions/actions/apply',route(req=>applyTransactionAction(pool,transactionApplySchema.parse(req.body))));
 app.get('/api/transactions/:id',route(req=>transactionDetail(pool,uuid(req.params.id))));
 app.post('/api/accounts',route(req=>createAccount(pool,req.body)));
 app.post('/api/events',route(async req=>{
@@ -86,7 +89,7 @@ app.use('/api',(req,res)=>res.status(404).json({error:'接口不存在'}));
 app.use((error,req,res,next)=>{
  if(res.headersSent)return next(error);
  if(error.code==='DOCUMENT_PURGED')return res.status(410).json({error:error.message});
- if(error.code==='DOCUMENT_SELECTION_CHANGED')return res.status(409).json({error:error.message});
+ if(error.code==='DOCUMENT_SELECTION_CHANGED'||error.code==='TRANSACTION_ACTION_CONFLICT')return res.status(409).json({error:error.message});
  const message=error.name==='ZodError'?'字段格式不正确':error.code?'操作未完成，请检查服务状态':error.message;
  res.status(400).json({error:message});
 });

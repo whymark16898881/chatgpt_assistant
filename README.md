@@ -27,3 +27,5 @@ Version 0.4.0 adds versioned recognition facts, hierarchical analysis categories
 Ordinary receipts and expenses use personal-wide settlement aggregates in 0.4.1: a specific bank or wallet is optional, currency is explicit, credit purchases remain liabilities, and unknown settlement stays pending. The aggregates are accounting nodes, not verified institution balances.
 
 The 0.4.2 receipt library supports individual/batch deletion, clearing across all pages, a restorable recycle bin and explicit permanent-original removal. Financial records remain intact; transaction details identify missing originals. Permanent removal affects current files, while existing private backups remain subject to their own retention.
+
+Version 0.4.3 adds single/batch transaction deletion and restoration with matching original-period statement effects and append-only journal history. The sidebar prioritizes summary reports and everyday work, with muted investment-source and opening setup links at the bottom. File deletion and transaction deletion remain separate.
