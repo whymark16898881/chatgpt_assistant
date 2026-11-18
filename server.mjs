@@ -1,4 +1,6 @@
 import express from 'express';
+import {createPresentationFx} from './lib/presentation-fx.mjs';
+import {webPresentation} from './lib/web-presentation.mjs';
 import {VERSION} from './lib/version.mjs';
 import next from 'next';
 import {readFile} from 'node:fs/promises';
@@ -18,6 +20,10 @@ import {analysisOverview,analysisQuerySchema,transactionDetail} from './lib/anal
 
 const dev=process.argv.includes('--dev');
 const pool=await connectDatabase();
+const presentationFx=createPresentationFx(pool);
+void presentationFx.get().catch(()=>{});
+const rateTimer=setInterval(()=>{void presentationFx.get().catch(()=>{});},300000);rateTimer.unref();
+const presentationFor=req=>presentationFx.resolve(z.enum(['CNY','USD','SGD']).parse(req.query.currency||req.body?.currency||'CNY'),req.query.rate_id||req.body?.rate_id?z.uuid().parse(req.query.rate_id||req.body.rate_id):undefined);
 const documents=documentService(pool,process.env.CFO_DATA_DIR||path.resolve('data/originals'));
 const password=(await readFile(process.env.CFO_WEB_PASSWORD_FILE||'/run/secrets/web_password','utf8')).trim();
 const mcpAuthorization=(await readFile(process.env.CFO_MCP_AUTHORIZATION_FILE||'/run/cfo/mcp-authorization','utf8')).trim();
@@ -25,6 +31,7 @@ if(!/^Bearer [a-f0-9]{64}$/.test(mcpAuthorization))throw new Error('Configure a 
 const auth=createAuth(password,{secureCookie:process.env.CFO_SECURE_COOKIE==='true'});
 const app=express();app.disable('x-powered-by');app.use(express.json({limit:'1mb'}));
 app.use((req,res,next)=>{res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Referrer-Policy','same-origin');res.setHeader('X-Frame-Options','DENY');next();});
+app.get('/health/presentation',(req,res)=>{res.setHeader('Cache-Control','no-store');res.json(presentationFx.status());});
 app.get('/health',async(req,res)=>{try{await pool.query('SELECT 1');res.json({status:'ready',version:VERSION});}catch{res.status(503).json({status:'not_ready'});}});
 app.get(['/.well-known/oauth-protected-resource','/.well-known/oauth-protected-resource/mcp'],(req,res)=>res.status(404).json({error:'not_advertised'}));
 app.post('/mcp',async(req,res)=>{
@@ -61,12 +68,14 @@ const uuid=id=>z.uuid().parse(id);
 app.get('/api/state',route(async req=>{
  const month=req.query.month||new Date(Date.now()+8*3600000).toISOString().slice(0,7);
  const [accounts,events,docs,report,cats,investments,deleted_events]=await Promise.all([listAccounts(pool),listEvents(pool),documents.list(),reports(pool,String(month)),categories(pool),investmentView(pool,{month:String(month)}),listEvents(pool,{onlyDeleted:true})]);
- return{accounts,events,deleted_events,documents:docs,report,categories:cats,investments};
+ const data={accounts,events,deleted_events,documents:docs,report,categories:cats,investments};
+ if(req.query.currency){const p=await presentationFor(req);return{...data,presentation:await webPresentation(pool,data,p)};}return data;
 }));
-app.get('/api/analysis',route(req=>analysisOverview(pool,analysisQuerySchema.parse({...req.query,unclassified:req.query.unclassified==='true',unknown_merchant:req.query.unknown_merchant==='true',limit:req.query.limit===undefined?30:Number(req.query.limit),offset:req.query.offset===undefined?0:Number(req.query.offset)}))));
-app.post('/api/transactions/actions/preview',route(req=>previewTransactionAction(pool,transactionActionSchema.parse(req.body))));
-app.post('/api/transactions/actions/apply',route(req=>applyTransactionAction(pool,transactionApplySchema.parse(req.body))));
-app.get('/api/transactions/:id',route(req=>transactionDetail(pool,uuid(req.params.id))));
+app.get('/api/presentation-rates',route(()=>presentationFx.get()));
+app.get('/api/analysis',route(async req=>{const {currency,rate_id,...query}=req.query;return analysisOverview(pool,analysisQuerySchema.parse({...query,unclassified:req.query.unclassified==='true',unknown_merchant:req.query.unknown_merchant==='true',limit:req.query.limit===undefined?30:Number(req.query.limit),offset:req.query.offset===undefined?0:Number(req.query.offset)}),await presentationFor(req));}));
+app.post('/api/transactions/actions/preview',route(async req=>previewTransactionAction(pool,transactionActionSchema.parse(req.body),await presentationFor(req))));
+app.post('/api/transactions/actions/apply',route(async req=>applyTransactionAction(pool,transactionApplySchema.parse(req.body),await presentationFor(req))));
+app.get('/api/transactions/:id',route(async req=>transactionDetail(pool,uuid(req.params.id),await presentationFor(req))));
 app.post('/api/accounts',route(req=>createAccount(pool,req.body)));
 app.post('/api/events',route(async req=>{
  const request_key=z.string().min(8).max(200).parse(req.body.request_key);

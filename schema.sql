@@ -189,3 +189,11 @@ ALTER TABLE cfo_events ADD COLUMN IF NOT EXISTS deleted_at timestamptz;
 ALTER TABLE cfo_events ADD COLUMN IF NOT EXISTS deleted_status text CHECK(deleted_status IN ('draft','posted','reversed','discarded'));
 ALTER TABLE cfo_events ADD COLUMN IF NOT EXISTS deleted_reversal_id uuid REFERENCES cfo_entries(id);
 CREATE INDEX IF NOT EXISTS cfo_deleted_events ON cfo_events(deleted_at) WHERE deleted_at IS NOT NULL;
+
+-- Public market quotes used only for display, never for posting or revaluation.
+CREATE TABLE IF NOT EXISTS cfo_presentation_rates (
+ id uuid PRIMARY KEY DEFAULT gen_random_uuid(),rate_date date NOT NULL,
+ provider text NOT NULL,rates jsonb NOT NULL,source_url text NOT NULL,
+ fetched_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS cfo_presentation_rates_latest ON cfo_presentation_rates(rate_date DESC,fetched_at DESC);

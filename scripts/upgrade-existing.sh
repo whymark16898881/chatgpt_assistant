@@ -37,19 +37,19 @@ for cfo_file in download.mjs policy.mjs errors.mjs; do cp "$cfo_source/probe/$cf
 # Optional public connector source is deliberately not replaced or restarted.
 if [ -n "${CFO_BUILD_CA_FILE:-}" ]; then
  if [ ! -r "$CFO_BUILD_CA_FILE" ]; then echo '配置的构建CA文件不可读'; exit 1; fi
- docker build --secret "id=proxy_ca,src=$CFO_BUILD_CA_FILE" -t personal-cfo:0.4.3 .
+ docker build --secret "id=proxy_ca,src=$CFO_BUILD_CA_FILE" -t personal-cfo:0.4.4 .
 else
  docker compose -f compose.yaml build app
 fi
-docker run --rm --network none --entrypoint node personal-cfo:0.4.3 --input-type=module \
- -e 'import{VERSION}from"/app/lib/version.mjs";import{createAuth}from"/app/lib/auth.mjs";if(VERSION!=="0.4.3")process.exit(1);createAuth("Ab12!xyZ");console.log("Image version and password policy verified.")'
+docker run --rm --network none --entrypoint node personal-cfo:0.4.4 --input-type=module \
+ -e 'import{VERSION}from"/app/lib/version.mjs";import{createAuth}from"/app/lib/auth.mjs";if(VERSION!=="0.4.4")process.exit(1);createAuth("Ab12!xyZ");console.log("Image version and password policy verified.")'
 if [ -s .env.public ]; then
  docker compose --env-file .env.public -f compose.yaml -f compose.https.yaml up -d --no-deps --no-build app
 else
  docker compose -f compose.yaml up -d --no-deps --no-build app
 fi
 cfo_attempt=0
-until curl -fsS http://127.0.0.1:3200/health | grep -q '"version":"0.4.3"'; do
+until curl -fsS http://127.0.0.1:3200/health | grep -q '"version":"0.4.4"'; do
  cfo_attempt=$((cfo_attempt + 1))
  if [ "$cfo_attempt" -ge 60 ]; then echo '新版本尚未ready，请检查app日志；保留原镜像及备份，不删卷'; exit 1; fi
  sleep 2
@@ -60,5 +60,5 @@ fi
 if ! CFO_TARGET_DIR="$cfo_target" CFO_PROJECT_NAME="$COMPOSE_PROJECT_NAME" sh "$cfo_source/scripts/reconnect-chatgpt.sh"; then
  echo 'MCP_RECONNECT_PENDING：网站升级已完成，正式插件连接仍需检查。'
 fi
-printf 'UPGRADE_READY: 0.4.3。源码备份：%s\n' "$cfo_source_backup"
+printf 'UPGRADE_READY: 0.4.4。源码备份：%s\n' "$cfo_source_backup"
 echo '原密码、数据库、票据、公网配置和连接器保留。请验证网页及采集器；账户结果出口和自动损益仍需实际验收。'

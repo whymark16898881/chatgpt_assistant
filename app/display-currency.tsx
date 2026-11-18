@@ -1,0 +1,19 @@
+'use client';
+import {createContext,useContext,useEffect,useRef,useState,type ReactNode} from 'react';
+import Decimal from 'decimal.js';
+export type DisplayCurrency='CNY'|'USD'|'SGD';type Rates={id:string|null;rate_date:string|null;today:string;provider:string|null;rates:Record<string,string>;status:string;source_url:string|null};
+const labels:Record<DisplayCurrency,string>={CNY:'人民币',USD:'美金',SGD:'新币'};const symbols:Record<string,string>={CNY:'¥',USD:'US$',SGD:'S$'};export const currencySymbol=(c:string)=>(symbols[c]||c);
+const Context=createContext<{currency:DisplayCurrency;setCurrency:(v:DisplayCurrency)=>void;snapshot:Rates|null;ensureRates:(force?:boolean)=>Promise<Rates|null>}|null>(null);
+export function CurrencyProvider({children}:{children:ReactNode}){
+ const [currency,setCurrencyState]=useState<DisplayCurrency>('CNY'),[snapshot,setSnapshot]=useState<Rates|null>(null),saved=useRef<Rates|null>(null),last=useRef(0),running=useRef<Promise<Rates|null>|null>(null);
+ useEffect(()=>{try{const c=localStorage.getItem('cfo-display-currency');if(c==='USD'||c==='SGD')setCurrencyState(c);}catch{}},[]);
+ function setCurrency(v:DisplayCurrency){setCurrencyState(v);try{localStorage.setItem('cfo-display-currency',v);}catch{}}
+ async function ensureRates(force=false){if(!force&&saved.current&&Date.now()-last.current<(saved.current.id?3600000:60000))return saved.current;if(running.current)return running.current;running.current=(async()=>{try{const r=await fetch('/api/presentation-rates');if(!r.ok)return saved.current;const data:Rates=await r.json();saved.current=data;last.current=Date.now();setSnapshot(data);return data;}catch{return saved.current;}finally{running.current=null;}})();return running.current;}
+ useEffect(()=>{const timer=setInterval(()=>{if(saved.current&&Date.now()-last.current>=(saved.current.id?3600000:60000))void ensureRates();},60000);return()=>clearInterval(timer);},[]); // eslint-disable-line
+ return <Context.Provider value={{currency,setCurrency,snapshot,ensureRates}}>{children}</Context.Provider>;
+}
+export function useDisplayCurrency(){const c=useContext(Context);if(!c)throw new Error('Currency provider missing');return c;}
+export function formatAmount(value:string|null|undefined){if(value==null||value==='')return'—';try{const v=new Decimal(value).toFixed(2);const [a,b]=v.split('.');return a.replace(/\B(?=(\d{3})+(?!\d))/g,',')+'.'+b;}catch{return'—';}}
+export function useReferenceMoney(){const {currency,snapshot}=useDisplayCurrency();return(value:string|null|undefined,from:string,to:string=currency)=>{if(value==null||value==='')return'—';try{if(from===to)return currencySymbol(to)+' '+formatAmount(value);if(!snapshot?.rates[from]||!snapshot.rates[to])return'—';return currencySymbol(to)+' '+formatAmount(new Decimal(value).div(snapshot.rates[from]).mul(snapshot.rates[to]).toFixed(2));}catch{return'—';}};}
+export function CurrencySelect(){const {currency,setCurrency}=useDisplayCurrency();return<select aria-label="展示币种" value={currency} onChange={e=>setCurrency(e.target.value as DisplayCurrency)}>{(['CNY','USD','SGD'] as const).map(c=><option key={c} value={c}>{labels[c]} · {c}</option>)}</select>;}
+export function RateNotice({renderCurrency,onRetry}:{renderCurrency:string;onRetry:()=>void}){const {currency,snapshot}=useDisplayCurrency();return<div className="rate-notice" role="status">{!snapshot?.id?<><span>{currency==='CNY'?(snapshot?.status==='unavailable'?'外币汇率暂不可用；当前显示人民币账面值。':'汇率加载中；当前显示人民币账面值。'):'汇率暂不可用，当前以人民币显示账面汇总。'}</span><button className="text-button" onClick={onRetry}>重新获取汇率</button></>:<><span>{currency!==renderCurrency?'正在切换展示币种… · ':''}汇率日期 {snapshot.rate_date} · <a href={snapshot.source_url||undefined} target="_blank" rel="noreferrer">{snapshot.provider}</a>{snapshot.status==='cached'?' · 更新暂不可用，使用已缓存汇率':snapshot.rate_date!==snapshot.today?' · 最新可用报价':''}。历史账面金额按最新汇率展示，原始记账不变。</span></>}</div>;}
