@@ -6,7 +6,7 @@ umask 077
 cfo_root=/volume1/docker/cfo
 cd "$cfo_root"
 if [ "$(id -u)" != 0 ]; then echo '请使用sudo运行'; exit 1; fi
-if ! curl -fsS http://127.0.0.1:3200/health | grep -q '"version":"0.4.6"'; then echo '请先升级CFO到0.4.6'; exit 1; fi
+if ! curl -fsS http://127.0.0.1:3200/health | grep -q '"version":"0.4.7"'; then echo '请先升级CFO到0.4.7'; exit 1; fi
 for cfo_tool in docker mount findmnt systemctl; do command -v "$cfo_tool" >/dev/null || { echo "缺少$cfo_tool"; exit 1; }; done
 if ! findmnt -rn -M "$cfo_root/portfolio-source" >/dev/null 2>&1 || [ ! -s secrets/smb-cfo.cred ]; then echo '请先完成只读挂载'; exit 1; fi
 printf 'CFO_PORTFOLIO_DIR=%s\n' "$cfo_root/portfolio-source" > .env.portfolio

@@ -1,6 +1,6 @@
 {
   "name": "personal-cfo",
-  "version": "0.4.6",
+  "version": "0.4.7",
   "private": true,
   "type": "module",
   "engines": {
@@ -11,7 +11,9 @@
     "build": "next build --webpack",
     "start": "node server.mjs",
     "test": "node --test --test-concurrency=1 tests/*.test.mjs",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prebuild": "node scripts/check-runtime.mjs",
+    "pretest": "node scripts/check-runtime.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.32.2",

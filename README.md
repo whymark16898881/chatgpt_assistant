@@ -35,3 +35,7 @@ Version 0.4.4 adds a CNY/USD/SGD display selector and automatically refreshed, d
 Version 0.4.5 separates saving draft supplements from posting, adds atomic batch review and a table editor, server-side 20-row ledger pagination, optional zero-value visibility, wrapped descriptions and a collapsible desktop sidebar. Opening balances stay fixed to the ledger start date; broker references remain separate until supported opening facts are confirmed.
 
 Version 0.4.6 adds source-linked broker ledger reconciliation: validated historical openings use historical FX; only independently reconciled, contiguous periods can post funding, investment return and FX journals. Missing transfer coverage, duplicate manual balances, source revisions and user reversals remain explicit blockers. Current NAV stays visibly separate from verified book values.
+
+Version 0.4.7 honors explicit closing observations across ET/SGT date boundaries and preserves independently known historical NAV when optional gross components are unavailable.
+
+In-progress monthly results use a fixed month-end logical key and explicit period_status=in_progress; closing_as_of records actual observation and coverage_through retains its reconciliation meaning. They are reference-only. Finalization retains the key and increments revision; final alone never grants posting eligibility. Backend syntax is checked before builds and before an upgrade replaces the app.
