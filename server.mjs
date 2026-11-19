@@ -11,7 +11,7 @@ import {connectDatabase} from './lib/db.mjs';
 import {documentService} from './lib/documents.mjs';
 import {financeMcp} from './lib/mcp.mjs';
 import {createAuth,equalSecret} from './lib/auth.mjs';
-import {createAccount,listAccounts,listEvents,recordEvent,requestKey,reviseAndPost,reverseEvent,discardDraft,categories,eventSchema} from './lib/ledger.mjs';
+import {createAccount,listAccounts,listEvents,eventPage,processDraftBatch,recordEvent,requestKey,reviseAndPost,reverseEvent,discardDraft,categories,eventSchema} from './lib/ledger.mjs';
 import {reports} from './lib/reports.mjs';
 import {investmentView} from './lib/investment-view.mjs';
 import {transactionActionSchema,transactionApplySchema,previewTransactionAction,applyTransactionAction} from './lib/transaction-lifecycle.mjs';
@@ -71,6 +71,12 @@ app.get('/api/state',route(async req=>{
  const data={accounts,events,deleted_events,documents:docs,report,categories:cats,investments};
  if(req.query.currency){const p=await presentationFor(req);return{...data,presentation:await webPresentation(pool,data,p)};}return data;
 }));
+app.get('/api/events/page',route(async req=>{
+ const page=await eventPage(pool,{status:req.query.status,search:req.query.search,include_zero:req.query.include_zero==='true',limit:req.query.limit===undefined?20:Number(req.query.limit),offset:req.query.offset===undefined?0:Number(req.query.offset)});
+ const p=await presentationFor(req),month=String(req.query.month||new Date(Date.now()+8*3600000).toISOString().slice(0,7));
+ const data={accounts:await listAccounts(pool),events:page.events,deleted_events:[],report:await reports(pool,month)};
+ const display=await webPresentation(pool,data,p);return{...page,events:display.events};
+}));
 app.get('/api/presentation-rates',route(()=>presentationFx.get()));
 app.get('/api/analysis',route(async req=>{const {currency,rate_id,...query}=req.query;return analysisOverview(pool,analysisQuerySchema.parse({...query,unclassified:req.query.unclassified==='true',unknown_merchant:req.query.unknown_merchant==='true',limit:req.query.limit===undefined?30:Number(req.query.limit),offset:req.query.offset===undefined?0:Number(req.query.offset)}),await presentationFor(req));}));
 app.post('/api/transactions/actions/preview',route(async req=>previewTransactionAction(pool,transactionActionSchema.parse(req.body),await presentationFor(req))));
@@ -84,6 +90,7 @@ app.post('/api/events',route(async req=>{
  if(!document_id){const bytes=Buffer.from(JSON.stringify({type:'user_manual_note',request_key,payload}));document_id=(await documents.saveBytes({file_name:'手工录入凭证.json'},{bytes,mime:'application/json'})).id;}
  return recordEvent(pool,{document_id,source_ref:req.body.source_ref||'manual:1',request_key,payload,auto_post:true});
 }));
+app.post('/api/events/drafts/batch',route(req=>processDraftBatch(pool,req.body)));
 app.post('/api/events/:id/resolve',route(req=>reviseAndPost(pool,uuid(req.params.id),req.body)));
 app.post('/api/events/:id/discard',route(req=>discardDraft(pool,uuid(req.params.id))));
 app.post('/api/events/:id/reverse',route(req=>reverseEvent(pool,uuid(req.params.id),req.body)));
