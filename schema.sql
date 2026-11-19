@@ -197,3 +197,23 @@ CREATE TABLE IF NOT EXISTS cfo_presentation_rates (
  fetched_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS cfo_presentation_rates_latest ON cfo_presentation_rates(rate_date DESC,fetched_at DESC);
+
+-- Explicit linkage between verified broker results and append-only journals.
+CREATE TABLE IF NOT EXISTS cfo_broker_accounts (
+ broker text NOT NULL, role text NOT NULL CHECK(role IN ('asset','liability','rounding')),
+ account_id uuid NOT NULL UNIQUE REFERENCES cfo_accounts(id) ON DELETE CASCADE, PRIMARY KEY(broker,role)
+);
+CREATE TABLE IF NOT EXISTS cfo_broker_postings (
+ source_key text PRIMARY KEY, source_hash text NOT NULL, source_revision integer NOT NULL,
+ account_scope jsonb NOT NULL, kind text NOT NULL, through_date date NOT NULL,
+ event_id uuid NOT NULL REFERENCES cfo_events(id), source_export_id text NOT NULL,
+ details jsonb NOT NULL, created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS cfo_broker_bridge_runs (
+ id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY, status text NOT NULL,
+ summary jsonb NOT NULL, at timestamptz NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS cfo_broker_exclusions (
+ account_id uuid PRIMARY KEY REFERENCES cfo_accounts(id) ON DELETE CASCADE,
+ confirmed_at timestamptz NOT NULL DEFAULT now()
+);

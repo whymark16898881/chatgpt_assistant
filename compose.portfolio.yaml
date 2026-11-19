@@ -2,7 +2,7 @@
 # Does not create or modify Samba shares, source services or broker gateways.
 services:
   portfolio-sync:
-    image: personal-cfo:0.4.5
+    image: personal-cfo:0.4.6
     command: ["node", "scripts/sync-investment-source.mjs", "--loop"]
     environment:
       PGHOST: postgres
@@ -10,6 +10,7 @@ services:
       CFO_PORTFOLIO_DIR: /portfolio-source
     volumes:
       - credentials:/run/cfo:ro
+      - originals:/data
       - type: bind
         source: ${CFO_PORTFOLIO_DIR:?Set an existing read-only NAS mount directory}
         target: /portfolio-source

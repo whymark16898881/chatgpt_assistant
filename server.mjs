@@ -13,6 +13,7 @@ import {financeMcp} from './lib/mcp.mjs';
 import {createAuth,equalSecret} from './lib/auth.mjs';
 import {createAccount,listAccounts,listEvents,eventPage,processDraftBatch,recordEvent,requestKey,reviseAndPost,reverseEvent,discardDraft,categories,eventSchema} from './lib/ledger.mjs';
 import {reports} from './lib/reports.mjs';
+import {brokerLedgerStatus,excludeNonBrokerAccounts} from './lib/broker-ledger.mjs';
 import {investmentView} from './lib/investment-view.mjs';
 import {transactionActionSchema,transactionApplySchema,previewTransactionAction,applyTransactionAction} from './lib/transaction-lifecycle.mjs';
 import {documentActionSchema,documentApplySchema} from './lib/document-lifecycle.mjs';
@@ -31,6 +32,7 @@ if(!/^Bearer [a-f0-9]{64}$/.test(mcpAuthorization))throw new Error('Configure a 
 const auth=createAuth(password,{secureCookie:process.env.CFO_SECURE_COOKIE==='true'});
 const app=express();app.disable('x-powered-by');app.use(express.json({limit:'1mb'}));
 app.use((req,res,next)=>{res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Referrer-Policy','same-origin');res.setHeader('X-Frame-Options','DENY');next();});
+app.get('/health/investment-ledger',async(req,res)=>{res.setHeader('Cache-Control','no-store');try{const s=await brokerLedgerStatus(pool);res.json({status:s.status,opening_count:s.summary?.opening_count||0,period_count:s.summary?.period_count||0,reason_codes:[...new Set((s.summary?.reasons||[]).map(x=>x.code))],history_headers:(s.summary?.history_headers||[]).filter(x=>/^[a-z_.]{1,60}$/i.test(x)),history_fields:s.summary?.history_fields||[],history_sections:s.summary?.history_sections||[],last_checked:s.last_checked});}catch{res.status(503).json({status:'unavailable'});}});
 app.get('/health/presentation',(req,res)=>{res.setHeader('Cache-Control','no-store');res.json(presentationFx.status());});
 app.get('/health',async(req,res)=>{try{await pool.query('SELECT 1');res.json({status:'ready',version:VERSION});}catch{res.status(503).json({status:'not_ready'});}});
 app.get(['/.well-known/oauth-protected-resource','/.well-known/oauth-protected-resource/mcp'],(req,res)=>res.status(404).json({error:'not_advertised'}));
@@ -90,6 +92,7 @@ app.post('/api/events',route(async req=>{
  if(!document_id){const bytes=Buffer.from(JSON.stringify({type:'user_manual_note',request_key,payload}));document_id=(await documents.saveBytes({file_name:'手工录入凭证.json'},{bytes,mime:'application/json'})).id;}
  return recordEvent(pool,{document_id,source_ref:req.body.source_ref||'manual:1',request_key,payload,auto_post:true});
 }));
+app.post('/api/investments/exclusions',route(req=>{if(req.body.confirmed!==true)throw new Error('需要明确确认这些归类不包含三家券商');return excludeNonBrokerAccounts(pool,req.body.account_ids);}));
 app.post('/api/events/drafts/batch',route(req=>processDraftBatch(pool,req.body)));
 app.post('/api/events/:id/resolve',route(req=>reviseAndPost(pool,uuid(req.params.id),req.body)));
 app.post('/api/events/:id/discard',route(req=>discardDraft(pool,uuid(req.params.id))));
