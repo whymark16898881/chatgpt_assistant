@@ -217,3 +217,10 @@ CREATE TABLE IF NOT EXISTS cfo_broker_exclusions (
  account_id uuid PRIMARY KEY REFERENCES cfo_accounts(id) ON DELETE CASCADE,
  confirmed_at timestamptz NOT NULL DEFAULT now()
 );
+
+-- Immutable daily public reference quotes for ordinary bookkeeping; retained in NAS DB backups.
+CREATE TABLE IF NOT EXISTS cfo_booking_fx_daily (
+ requested_date date PRIMARY KEY,rate_date date NOT NULL CHECK(rate_date<=requested_date),
+ provider text NOT NULL,rates jsonb NOT NULL,source_url text NOT NULL,
+ fetched_at timestamptz NOT NULL DEFAULT now()
+);

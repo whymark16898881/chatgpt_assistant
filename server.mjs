@@ -1,3 +1,4 @@
+import {configureBookingFx,createBookingFx} from './lib/booking-fx.mjs';
 import express from 'express';
 import {createPresentationFx} from './lib/presentation-fx.mjs';
 import {webPresentation} from './lib/web-presentation.mjs';
@@ -21,9 +22,11 @@ import {analysisOverview,analysisQuerySchema,transactionDetail} from './lib/anal
 
 const dev=process.argv.includes('--dev');
 const pool=await connectDatabase();
+const bookingFx=createBookingFx(pool);configureBookingFx(pool,bookingFx);
+void bookingFx.warmToday().catch(()=>{});
 const presentationFx=createPresentationFx(pool);
 void presentationFx.get().catch(()=>{});
-const rateTimer=setInterval(()=>{void presentationFx.get().catch(()=>{});},300000);rateTimer.unref();
+const rateTimer=setInterval(()=>{void presentationFx.get().catch(()=>{});void bookingFx.warmToday().catch(()=>{});},300000);rateTimer.unref();
 const presentationFor=req=>presentationFx.resolve(z.enum(['CNY','USD','SGD']).parse(req.query.currency||req.body?.currency||'CNY'),req.query.rate_id||req.body?.rate_id?z.uuid().parse(req.query.rate_id||req.body.rate_id):undefined);
 const documents=documentService(pool,process.env.CFO_DATA_DIR||path.resolve('data/originals'));
 const password=(await readFile(process.env.CFO_WEB_PASSWORD_FILE||'/run/secrets/web_password','utf8')).trim();
@@ -33,6 +36,7 @@ const auth=createAuth(password,{secureCookie:process.env.CFO_SECURE_COOKIE==='tr
 const app=express();app.disable('x-powered-by');app.use(express.json({limit:'1mb'}));
 app.use((req,res,next)=>{res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Referrer-Policy','same-origin');res.setHeader('X-Frame-Options','DENY');next();});
 app.get('/health/investment-ledger',async(req,res)=>{res.setHeader('Cache-Control','no-store');try{const s=await brokerLedgerStatus(pool);res.json({status:s.status,opening_count:s.summary?.opening_count||0,period_count:s.summary?.period_count||0,reason_codes:[...new Set((s.summary?.reasons||[]).map(x=>x.code))],history_headers:(s.summary?.history_headers||[]).filter(x=>/^[a-z_.]{1,60}$/i.test(x)),history_fields:s.summary?.history_fields||[],history_sections:s.summary?.history_sections||[],last_checked:s.last_checked});}catch{res.status(503).json({status:'unavailable'});}});
+app.get('/health/booking-rates',(req,res)=>{res.setHeader('Cache-Control','no-store');res.json(bookingFx.status());});
 app.get('/health/presentation',(req,res)=>{res.setHeader('Cache-Control','no-store');res.json(presentationFx.status());});
 app.get('/health',async(req,res)=>{try{await pool.query('SELECT 1');res.json({status:'ready',version:VERSION});}catch{res.status(503).json({status:'not_ready'});}});
 app.get(['/.well-known/oauth-protected-resource','/.well-known/oauth-protected-resource/mcp'],(req,res)=>res.status(404).json({error:'not_advertised'}));
