@@ -19,19 +19,20 @@ export default function AnalysisPanel({month,onSessionExpired,onFinancialChange}
  const {currency,snapshot}=useDisplayCurrency(),target=currency==='CNY'||snapshot?.id?currency:'CNY';
  const [data,setData]=useState<Analysis|null>(null),[detail,setDetail]=useState<Detail|null>(null),[error,setError]=useState(''),[detailError,setDetailError]=useState(''),[busy,setBusy]=useState(false),[detailBusy,setDetailBusy]=useState(false);
  const symbol=currencySymbol(data?.currency||target);
- const [kind,setKind]=useState('all'),[mode,setMode]=useState('financial_category'),[filters,setFilters]=useState<Record<string,string>>({}),[offset,setOffset]=useState(0);
+ const [kind,setKind]=useState('all'),[mode,setMode]=useState('financial_category'),[filters,setFilters]=useState<Record<string,string>>({}),[offset,setOffset]=useState(0),[sort,setSort]=useState('date');
  const [selected,setSelected]=useState<string[]>([]),[action,setAction]=useState<TransactionRequest|null>(null),[refresh,setRefresh]=useState(0),[notice,setNotice]=useState('');
  const sequence=useRef(0),detailSequence=useRef(0),treeRef=useRef<Node[]>([]);
  useEffect(()=>()=>{detailSequence.current++;},[]);
  useEffect(()=>{
   const current=++sequence.current,controller=new AbortController();setBusy(true);setError('');setData(null);setSelected([]);
-  const query=new URLSearchParams({month,kind,group_by:mode,offset:String(offset),...filters,currency:target,...(snapshot?.id?{rate_id:snapshot.id}:{})});
+  const query=new URLSearchParams({month,kind,group_by:mode,sort,offset:String(offset),...filters,currency:target,...(snapshot?.id?{rate_id:snapshot.id}:{})});
   void fetch('/api/analysis?'+query,{signal:controller.signal}).then(async r=>{if(r.status===401){onSessionExpired();return;}const d=await r.json();if(!r.ok)throw new Error(d.error||'分析暂时不可用');if(current===sequence.current){treeRef.current=d.classification_tree;setData(d);}}).catch(e=>{if(e.name!=='AbortError'&&current===sequence.current)setError(e.message);}).finally(()=>{if(current===sequence.current)setBusy(false);});
   return()=>controller.abort();
- },[month,kind,mode,filters,offset,refresh,target,snapshot?.id]); // eslint-disable-line
+ },[month,kind,mode,sort,filters,offset,refresh,target,snapshot?.id]); // eslint-disable-line
  const name=(tree:string,code:string)=>(data?.classification_tree||treeRef.current).find(n=>n.tree===tree&&n.code===code)?.path.map(n=>n.name).join(' / ')||'未细分';
  function choose(group:Group){setOffset(0);if(mode==='analysis_category'){if(group.key==='__unclassified__')setFilters(f=>({...f,unclassified:'true'}));else if(group.next_code)setFilters(f=>({...f,category_code:group.next_code!,unclassified:'false',direct_category_code:''}));else setFilters(f=>({...f,direct_category_code:group.key.replace(/::direct$/,''),unclassified:'false'}));}
   else if(mode==='financial_category'){if(group.next_code)setFilters(f=>({...f,financial_code:group.next_code!}));}
+  else if(mode==='platform')setFilters(f=>({...f,platform:group.key}));
   else if(mode==='merchant')setFilters(f=>group.key==='__unknown__'?{...f,unknown_merchant:'true',merchant:''}:{...f,merchant:group.key,unknown_merchant:'false'});
   else if(mode==='meal_type')setFilters(f=>({...f,meal_type:group.key}));else setFilters(f=>({...f,day:group.key}));
  }
@@ -42,7 +43,7 @@ export default function AnalysisPanel({month,onSessionExpired,onFinancialChange}
  return <>
  {notice&&<p role="status" className="banner success">{notice}</p>}
  <section className="panel"><div className="section-title"><div><h2>收入与费用穿透</h2><p className="muted">只统计已入账记录。先看汇总，再按分类、商户、餐次或日期筛选，最后查看交易与原件。</p></div></div>
- <div className="toolbar"><select aria-label="分析收支范围" value={kind} onChange={e=>{setKind(e.target.value);setFilters({});setOffset(0);}}><option value="all">收入与费用</option><option value="income">收入</option><option value="expense">费用</option></select><select aria-label="分析维度" value={mode} onChange={e=>{setMode(e.target.value);setOffset(0);}}><option value="analysis_category">分析分类</option><option value="financial_category">财务科目</option><option value="merchant">商户</option><option value="meal_type">餐次</option><option value="day">日期</option></select><button className="text-button" onClick={()=>{setFilters({});setOffset(0);}}>清除筛选</button>{busy&&<span role="status" className="muted">正在读取…</span>}</div>
+ <div className="toolbar"><select aria-label="分析收支范围" value={kind} onChange={e=>{setKind(e.target.value);setFilters({});setOffset(0);}}><option value="all">收入与费用</option><option value="income">收入</option><option value="expense">费用</option></select><select aria-label="分析维度" value={mode} onChange={e=>{setMode(e.target.value);setOffset(0);}}><option value="analysis_category">分析分类</option><option value="financial_category">财务科目</option><option value="platform">账户 / 卡</option><option value="merchant">商户</option><option value="meal_type">餐次</option><option value="day">日期</option></select><select aria-label="明细排序" value={sort} onChange={e=>{setSort(e.target.value);setOffset(0);}}><option value="date">明细按日期</option><option value="amount">明细按金额</option></select><button className="text-button" onClick={()=>{setFilters({});setOffset(0);}}>清除筛选</button>{busy&&<span role="status" className="muted">正在读取…</span>}</div>
  {chips.length>0&&<div className="analysis-chips">{chips.map(c=><button key={c.key} className="secondary" onClick={()=>{setFilters(f=>{const next={...f};delete next[c.key];return next;});setOffset(0);}}>{c.label} ×</button>)}</div>}
  {error&&<p role="alert" className="error">{error}</p>}
  {data&&!error&&<><div className="statement-row"><span>已入账收入</span><b>{symbol} {money(data.totals.income_cny)}</b></div><div className="statement-row"><span>已入账费用</span><b>{symbol} {money(data.totals.expense_cny)}</b></div><div className="statement-total"><span>收入减费用</span><strong>{symbol} {money(data.totals.net_cny)}</strong></div><p className="muted">当前筛选：{data.totals.transaction_count} 笔交易 · {data.totals.document_count} 份凭证记录 · {data.totals.item_count} 条分析记录。凭证数与交易数分别去重；已删除原件保留账目引用。</p>
