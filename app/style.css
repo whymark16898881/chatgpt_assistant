@@ -18,3 +18,5 @@
 .ledger-table thead th:first-child:not(:has(input)){width:30%}.ledger-table thead:has(input) th:nth-child(2){width:30%}.ledger-table th:last-child{width:140px}
 
 .draft-row-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;justify-content:flex-end}.draft-row-actions button{font-size:12px;padding:8px 10px;white-space:normal}
+
+.required-mark,.field-missing{color:#a34538}.draft-editor [aria-invalid="true"]{border-color:#a34538}.draft-editor .field-missing{font-size:11px;margin-top:5px}
