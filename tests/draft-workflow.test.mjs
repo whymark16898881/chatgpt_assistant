@@ -20,3 +20,29 @@ test('recognized snapshot balances remain separate from unconfirmed opening amou
   const neighbor=(await pool.query('SELECT * FROM cfo_events WHERE id=$1',[b.id])).rows[0];assert.equal(neighbor.status,'draft');assert.equal(neighbor.revision,b.revision);assert.equal(neighbor.payload.amount,'98.76');
   await assert.rejects(processDraftBatch(pool,{action:'save_confirm',items:[{...item(out.events[0]),payload:out.events[0].payload}]}),/非草稿/);assert.equal((await pool.query('SELECT count(*) FROM cfo_entries')).rows[0].count,'1');
  });
+
+ test('partial confirmation posts ready rows, retains warnings and resumes after correction without duplicate journals',async()=>{
+  await reset();const a=await draft({amount:'12.34'}),b=await draft({amount:'20.00',date:undefined}),c=await draft({amount:'5.67',date:'2026-11-03'});
+  const out=await processDraftBatch(pool,{action:'confirm',partial:true,items:[item(a),item(b),item(c)]});assert.equal(out.count,2);assert.equal(out.posted_count,2);assert.equal(out.failed_count,1);assert.equal(out.financial_transaction_posted,true);assert.equal(out.failures[0].id,b.id);assert.match(out.failures[0].reason,/日期/);
+  const held=out.events.find(e=>e.id===b.id);assert.equal(held.status,'draft');assert.ok(held.issues.some(x=>x.includes('日期')));assert.equal((await pool.query('SELECT count(*) FROM cfo_entries WHERE event_id=$1',[b.id])).rows[0].count,'0');assert.equal((await reports(pool,'2026-11')).income_statement.total_expenses,'18.01');
+  const corrected=await reviseAndPost(pool,b.id,{revision:held.revision,payload:{...held.payload,date:'2026-11-04'},auto_post:false});
+  const resumed=await processDraftBatch(pool,{action:'confirm',partial:true,items:[item(out.events.find(e=>e.id===a.id)),item(corrected),item(out.events.find(e=>e.id===c.id))]});assert.equal(resumed.posted_count,1);assert.equal(resumed.failed_count,2);assert.equal((await pool.query('SELECT count(*) FROM cfo_entries')).rows[0].count,'3');const report=await reports(pool,'2026-11');assert.equal(report.income_statement.total_expenses,'38.01');assert.equal(report.balance_sheet.balanced,true);assert.equal(report.cash_flow.reconciled,true);
+ });
+ test('partial confirmation isolates stale revisions and duplicates, while unconfirmed review remains blocked',async()=>{
+  await reset();const a=await draft({description:'first',amount:'11'}),duplicate=await draft({description:'same amount and day',amount:'11'}),stale=await draft({amount:'21'}),review=await draft({amount:'31',needs_review:['核实余额日期']}),last=await draft({amount:'41'});
+  await reviseAndPost(pool,stale.id,{revision:stale.revision,payload:{...stale.payload,amount:'22'},auto_post:false});
+  const out=await processDraftBatch(pool,{action:'confirm',partial:true,items:[item(a),item(duplicate),item(stale),item(review),item(last)]});assert.equal(out.posted_count,2);assert.equal(out.failed_count,3);assert.match(out.failures.find(f=>f.id===duplicate.id).reason,/可能重复/);assert.match(out.failures.find(f=>f.id===stale.id).reason,/已更新/);assert.match(out.failures.find(f=>f.id===review.id).reason,/核实余额日期/);assert.equal(out.events.find(e=>e.id===stale.id).payload.amount,'22');assert.equal((await reports(pool,'2026-11')).income_statement.total_expenses,'52.00');
+  await assert.rejects(processDraftBatch(pool,{action:'save',partial:true,items:[{...item(last),payload:last.payload}]}),/仅适用于/);
+ });
+
+ test('manual confirmation accepts a snapshot as estimated opening without a dated replacement image',async()=>{
+  await reset();const a=await createAccount(pool,{name:'consolidated fund',currency:'CNY',kind:'investment'});let e=await draft({kind:'opening',date:'2026-11-01',account_id:a.id,amount:undefined,description:'截图总额 CNY 123.45',needs_review:['确认11月1日期初余额，或明确授权使用截图金额作为建账基准','确认基金账户所属平台或账本名称']});
+  const candidate={...e.payload,amount:'123.45',amount_origin:'snapshot_candidate',balance_observation:{amount:'123.45',currency:'CNY',as_of:'2026-11-18'}};
+  const kept=await processDraftBatch(pool,{action:'save',items:[{...item(e),payload:candidate}]});e=kept.events[0];assert.equal(e.status,'draft');assert.ok(e.issues.some(x=>x.includes('手工确认')));
+  const posted=await processDraftBatch(pool,{action:'save_confirm',items:[{...item(e),payload:{...candidate,user_confirmation:{date:'2026-11-01',amount:'123.45',currency:'CNY',basis:'estimated_opening'}}}]});const event=posted.events[0];assert.equal(event.status,'posted');assert.deepEqual(event.payload.needs_review,[]);assert.equal(event.document_id,e.document_id);assert.equal(event.payload.balance_observation.as_of,'2026-11-18');assert.equal(event.payload.user_confirmation.basis,'estimated_opening');assert.equal((await pool.query('SELECT count(*) FROM cfo_documents')).rows[0].count,'1');assert.equal((await reports(pool,'2026-11')).balance_sheet.net_worth,'123.45');
+ });
+ test('manual date confirmation resolves only matching date concerns and becomes invalid when facts change',async()=>{
+  await reset();let e=await draft({date:undefined,needs_review:['截图未显示日期，待核实','需核对购买用途']});const confirmation={date:'2026-11-05',amount:e.payload.amount,currency:'CNY',basis:'confirmed'};
+  const saved=await processDraftBatch(pool,{action:'save',items:[{...item(e),payload:{...e.payload,date:'2026-11-05',user_confirmation:confirmation}}]});e=saved.events[0];assert.deepEqual(e.payload.needs_review,['需核对购买用途']);await assert.rejects(processDraftBatch(pool,{action:'save_confirm',items:[{...item(e),payload:{...e.payload,needs_review:[],amount:'999'}}]}),/重新手工确认/);
+  const out=await processDraftBatch(pool,{action:'save_confirm',items:[{...item(e),payload:{...e.payload,needs_review:[]}}]});assert.equal(out.events[0].status,'posted');assert.equal(out.events[0].payload.date,'2026-11-05');
+ });

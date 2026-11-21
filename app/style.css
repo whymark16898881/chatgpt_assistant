@@ -20,3 +20,5 @@
 .draft-row-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;justify-content:flex-end}.draft-row-actions button{font-size:12px;padding:8px 10px;white-space:normal}
 
 .required-mark,.field-missing{color:#a34538}.draft-editor [aria-invalid="true"]{border-color:#a34538}.draft-editor .field-missing{font-size:11px;margin-top:5px}
+
+.draft-editor .checkbox input[type="checkbox"]{width:16px;min-width:16px;padding:0;flex-shrink:0}.draft-editor .checkbox{align-items:flex-start;white-space:normal}
