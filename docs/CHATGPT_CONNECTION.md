@@ -40,7 +40,7 @@ sudo sh scripts/connect-chatgpt.sh --rollback
 
 先调用 `cfo_health`，确认版本与 `database=reachable`；再查看 `cfo_list_accounts`。正式验收使用用户提供的真实交易凭证及记账意图，不往真实账本写入虚构测试交易。
 
-上传截图并说“帮我记账”。明确交易应返回真实 posted；缺少日期、付款账户或汇率时保留 draft 并追问。多图按每次最多3张自动分组；重复上传不应重复生成分录。仅保存原件不是正式入账。
+上传截图并说“帮我记账”。明确交易应返回真实 posted；缺少日期、付款账户或汇率时保留 draft 并追问。多个附件按每次最多6个自动分组；重复上传不应重复生成分录。PDF 可直接上传：有文本层按页返回真实文本，扫描件返回该页渲染图片。仅保存原件不是正式入账。
 
 已归档凭证可通过 `cfo_list_documents`、`cfo_read_document` 和 `cfo_record_existing_document`继续处理。批量处理、重复检测、待补充和三表勾稽已有隔离测试，仍须上述真实插件验收。
 

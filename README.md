@@ -39,3 +39,5 @@ Version 0.4.6 adds source-linked broker ledger reconciliation: validated histori
 Version 0.4.7 honors explicit closing observations across ET/SGT date boundaries and preserves independently known historical NAV when optional gross components are unavailable.
 
 In-progress monthly results use a fixed month-end logical key and explicit period_status=in_progress; closing_as_of records actual observation and coverage_through retains its reconciliation meaning. They are reference-only. Finalization retains the key and increments revision; final alone never grants posting eligibility. Backend syntax is checked before builds and before an upgrade replaces the app.
+
+Version 0.4.16 reads archived PDF originals directly: pages with a real text layer come back as column-aligned text, scanned pages are rendered to images for recognition, and encrypted or unrenderable pages are reported explicitly instead of returning blank. One capture group now carries up to six attachments, downloaded concurrently, and batch receipts list neighbouring transactions the caller left out so a forgotten upload group cannot pass as a complete summary.
