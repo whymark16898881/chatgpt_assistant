@@ -37,7 +37,7 @@ services:
     mem_limit: 512m
   app:
     build: .
-    image: personal-cfo:0.4.16
+    image: personal-cfo:0.4.17
     restart: unless-stopped
     environment:
       PGHOST: postgres

@@ -19,7 +19,7 @@ export default function AnalysisPanel({month,onSessionExpired,onFinancialChange}
  const {currency,snapshot}=useDisplayCurrency(),target=currency==='CNY'||snapshot?.id?currency:'CNY';
  const [data,setData]=useState<Analysis|null>(null),[detail,setDetail]=useState<Detail|null>(null),[error,setError]=useState(''),[detailError,setDetailError]=useState(''),[busy,setBusy]=useState(false),[detailBusy,setDetailBusy]=useState(false);
  const symbol=currencySymbol(data?.currency||target);
- const [kind,setKind]=useState('all'),[mode,setMode]=useState('analysis_category'),[filters,setFilters]=useState<Record<string,string>>({}),[offset,setOffset]=useState(0);
+ const [kind,setKind]=useState('all'),[mode,setMode]=useState('financial_category'),[filters,setFilters]=useState<Record<string,string>>({}),[offset,setOffset]=useState(0);
  const [selected,setSelected]=useState<string[]>([]),[action,setAction]=useState<TransactionRequest|null>(null),[refresh,setRefresh]=useState(0),[notice,setNotice]=useState('');
  const sequence=useRef(0),detailSequence=useRef(0),treeRef=useRef<Node[]>([]);
  useEffect(()=>()=>{detailSequence.current++;},[]);
