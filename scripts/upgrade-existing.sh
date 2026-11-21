@@ -9,6 +9,16 @@ cfo_target=${CFO_TARGET_DIR:-/volume1/docker/cfo}
 cfo_target=$(cd "$cfo_target" && pwd -P)
 if [ "$cfo_source" = "$cfo_target" ]; then echo '请从独立解压的更新文件夹运行，不要先覆盖线上项目'; exit 1; fi
 if [ ! -f "$cfo_source/lib/version.mjs" ] || [ ! -f "$cfo_target/compose.yaml" ] || [ ! -s "$cfo_target/secrets/web-password.txt" ]; then echo '更新包或现有CFO目录不完整'; exit 1; fi
+# The image tag lives in the compose files and the version in lib/version.mjs; a mismatch
+# must stop before anything on the live installation is touched, not halfway through a build.
+cfo_version=$(sed -n "s/^export const VERSION='\(.*\)';$/\1/p" "$cfo_source/lib/version.mjs")
+if [ -z "$cfo_version" ]; then echo '无法从lib/version.mjs读出版本号'; exit 1; fi
+cfo_image="personal-cfo:$cfo_version"
+for cfo_file in compose.yaml compose.portfolio.yaml compose.import.yaml; do
+ if grep -q 'image: personal-cfo:' "$cfo_source/$cfo_file" && ! grep -q "image: $cfo_image\$" "$cfo_source/$cfo_file"; then
+  echo "更新包的 $cfo_file 镜像标签与 lib/version.mjs($cfo_version) 不一致，未升级"; exit 1
+ fi
+done
 COMPOSE_PROJECT_NAME=${CFO_PROJECT_NAME:-cfo}
 export COMPOSE_PROJECT_NAME
 cd "$cfo_target"
@@ -37,20 +47,20 @@ for cfo_file in download.mjs policy.mjs errors.mjs; do cp "$cfo_source/probe/$cf
 # Optional public connector source is deliberately not replaced or restarted.
 if [ -n "${CFO_BUILD_CA_FILE:-}" ]; then
  if [ ! -r "$CFO_BUILD_CA_FILE" ]; then echo '配置的构建CA文件不可读'; exit 1; fi
- docker build --secret "id=proxy_ca,src=$CFO_BUILD_CA_FILE" -t personal-cfo:0.4.16 .
+ docker build --secret "id=proxy_ca,src=$CFO_BUILD_CA_FILE" -t "$cfo_image" .
 else
  docker compose -f compose.yaml build app
 fi
-docker run --rm --network none --entrypoint node personal-cfo:0.4.16 scripts/check-runtime.mjs
-docker run --rm --network none --entrypoint node personal-cfo:0.4.16 --input-type=module \
- -e 'import{VERSION}from"/app/lib/version.mjs";import{createAuth}from"/app/lib/auth.mjs";if(VERSION!=="0.4.16")process.exit(1);createAuth("Ab12!xyZ");console.log("Image version and password policy verified.")'
+docker run --rm --network none --entrypoint node "$cfo_image" scripts/check-runtime.mjs
+docker run --rm --network none -e "CFO_EXPECTED_VERSION=$cfo_version" --entrypoint node "$cfo_image" --input-type=module \
+ -e 'import{VERSION}from"/app/lib/version.mjs";import{createAuth}from"/app/lib/auth.mjs";if(VERSION!==process.env.CFO_EXPECTED_VERSION)process.exit(1);createAuth("Ab12!xyZ");console.log("Image version and password policy verified.")'
 if [ -s .env.public ]; then
  docker compose --env-file .env.public -f compose.yaml -f compose.https.yaml up -d --no-deps --no-build app
 else
  docker compose -f compose.yaml up -d --no-deps --no-build app
 fi
 cfo_attempt=0
-until curl -fsS http://127.0.0.1:3200/health | grep -q '"version":"0.4.16"'; do
+until curl -fsS http://127.0.0.1:3200/health | grep -q "\"version\":\"$cfo_version\""; do
  cfo_attempt=$((cfo_attempt + 1))
  if [ "$cfo_attempt" -ge 60 ]; then echo '新版本尚未ready，请检查app日志；保留原镜像及备份，不删卷'; exit 1; fi
  sleep 2
@@ -61,5 +71,5 @@ fi
 if ! CFO_TARGET_DIR="$cfo_target" CFO_PROJECT_NAME="$COMPOSE_PROJECT_NAME" sh "$cfo_source/scripts/reconnect-chatgpt.sh"; then
  echo 'MCP_RECONNECT_PENDING：网站升级已完成，正式插件连接仍需检查。'
 fi
-printf 'UPGRADE_READY: 0.4.16。源码备份：%s\n' "$cfo_source_backup"
+printf 'UPGRADE_READY: %s。源码备份：%s\n' "$cfo_version" "$cfo_source_backup"
 echo '原密码、数据库、票据、公网配置和连接器保留。请验证网页及采集器；账户结果出口和自动损益仍需实际验收。'
