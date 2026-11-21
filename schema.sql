@@ -224,3 +224,6 @@ CREATE TABLE IF NOT EXISTS cfo_booking_fx_daily (
  provider text NOT NULL,rates jsonb NOT NULL,source_url text NOT NULL,
  fetched_at timestamptz NOT NULL DEFAULT now()
 );
+
+-- A platform contains assets/liabilities in several original currencies; the UI manages the platform.
+ALTER TABLE cfo_accounts ADD COLUMN IF NOT EXISTS platform_name text;
