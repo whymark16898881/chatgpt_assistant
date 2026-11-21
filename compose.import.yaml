@@ -1,6 +1,6 @@
 services:
   import-probe:
-    image: personal-cfo:0.4.13
+    image: personal-cfo:0.4.14
     command: ["node", "scripts/import-probe.mjs"]
     environment:
       PGHOST: postgres
