@@ -247,6 +247,16 @@ CREATE TABLE IF NOT EXISTS cfo_rules (
   created_at timestamptz NOT NULL DEFAULT now(),
   CHECK (action <> 'categorize' OR category IS NOT NULL)
 );
+-- An amount floor narrows a rule that text alone cannot: the salary account's
+-- monthly top-ups are always large, so a small credit with the same memo is not one.
+ALTER TABLE cfo_rules ADD COLUMN IF NOT EXISTS min_amount numeric;
+ALTER TABLE cfo_rules ADD COLUMN IF NOT EXISTS amount_currency text;
 CREATE UNIQUE INDEX IF NOT EXISTS cfo_rules_unique
   ON cfo_rules(lower(pattern),coalesce(lower(account_pattern),''),applies_to);
 CREATE INDEX IF NOT EXISTS cfo_rules_order ON cfo_rules(enabled,priority,created_at);
+
+-- Seeded rules are inserted once and then belong to the user, so a later
+-- improvement to a seed has to be applied as its own guarded migration rather
+-- than by making the seed overwrite whatever the user has since changed.
+UPDATE cfo_rules SET min_amount=500,amount_currency='SGD'
+ WHERE pattern='SALA' AND account_pattern='DBS|UOB' AND min_amount IS NULL;

@@ -65,3 +65,26 @@ test('a categorize rule without a category is refused outright',async()=>{
  await assert.rejects(()=>addRule(pool,{pattern:'ZZNOCAT',action:'categorize',reason:'[测试] 缺科目'}));
  await pool.query("DELETE FROM cfo_rules WHERE reason LIKE '[测试]%'");
 });
+
+test('an amount floor keeps a small look-alike credit out of the transfer rule',()=>{
+ const rule=[{id:'r',enabled:true,priority:10,pattern:'SALA',account_pattern:'DBS',applies_to:'income',
+  action:'skip',reason:'内部调度',min_amount:500,amount_currency:'SGD'}];
+ const at=(amount,currency='SGD')=>matchRule(rule,{kind:'income',description:'SALA transfer',account_name:'DBS',amount,currency});
+ assert.equal(at('5000')?.id,'r','月度调度就该跳过');
+ assert.equal(at('500')?.id,'r','正好等于下限也算');
+ assert.equal(at('499.99'),null,'低于下限的同名入账不是调度');
+ assert.equal(at(undefined),null,'说不出金额就证明不了适用，宁可不跳过');
+ assert.equal(at('5000','CNY'),null,'币种对不上时金额条件不成立');
+});
+
+test('seeded rules carry the floor and the wallet mirrors cover UnionPay too',async()=>{
+ const rules=await listRules(pool);
+ const sala=rules.find(r=>r.pattern==='SALA');
+ assert.ok(sala,'SALA 规则应已种入');
+ assert.equal(Number(sala.min_amount),500);
+ assert.equal(sala.amount_currency,'SGD');
+ for(const p of ['支付宝','财付通','微信支付','云闪付','UnionPay']){
+  const r=rules.find(x=>x.pattern===p);
+  assert.ok(r&&r.action==='skip',`${p} 应有镜像规则`);
+ }
+});
