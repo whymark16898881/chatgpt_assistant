@@ -141,3 +141,9 @@ cfo_investments 的 ledger_bridge 返回实际入账状态、已入账期间与�
 用户明确确认日期或授权以截图金额/估算金额作为开账基准时，可保存user_confirmation（date、amount、currency、basis），无需重传带开账日期的凭证；保留原件和原始观测日期，不把用户估算说成原图事实。缺失期初候选金额可预填为snapshot_candidate，需用户明确确认后才能入账；平台/券商名称不是个人汇总分类的必填项。
 
 按平台管理资产与负债：同银行/券商的不同币种、活期定期及多张信用卡分别汇总为平台资产/平台负债。输入platform_name、account_side及凭证原币currency；系统自动选择或维护原币核算节点，不要求用户逐币种/逐卡片创建归类。信用卡欠款与贷款是负债；活期定期余额是资产，不混用借记贷记卡名称。平台汇总保留资产/负债两边，不抵消融资或制造收益。
+
+费用按五类一级科目归集：主营业务成本只放不上班就不会发生的支出——通勤expense.commute、工作餐expense.work_meal、职业培训expense.training、工作设备expense.work_equipment，只有工作日通勤时段的交通与工作日午餐加班餐才算，周末出行和社交聚餐不算。
+必要生活支出放日常三餐expense.food、居住expense.housing、日常交通expense.transport、通讯expense.telecom、健康保险家庭支持等。
+可选消费放旅游expense.travel、购物expense.shopping、娱乐expense.entertainment、会员订阅expense.subscription。
+财务费用放融资利息与手续费。
+投资损失单列。判断不出是否工作相关时归必要生活支出，不要推测成主营业务成本，主营业务成本虚高会让毛利失真。收入分工资income.salary、投资收益、副业income.side三条线。

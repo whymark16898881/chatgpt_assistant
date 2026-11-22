@@ -2,7 +2,7 @@
 # Does not create or modify Samba shares, source services or broker gateways.
 services:
   portfolio-sync:
-    image: personal-cfo:0.4.18
+    image: personal-cfo:0.4.19
     command: ["node", "scripts/sync-investment-source.mjs", "--loop"]
     environment:
       PGHOST: postgres
