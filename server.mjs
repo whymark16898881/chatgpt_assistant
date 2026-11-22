@@ -19,6 +19,9 @@ import {investmentView} from './lib/investment-view.mjs';
 import {transactionActionSchema,transactionApplySchema,previewTransactionAction,applyTransactionAction} from './lib/transaction-lifecycle.mjs';
 import {documentActionSchema,documentApplySchema} from './lib/document-lifecycle.mjs';
 import {analysisOverview,analysisQuerySchema,transactionDetail} from './lib/analysis.mjs';
+import {clarifications,answerClarification} from './lib/clarifications.mjs';
+import {setRuleEnabled} from './lib/rules.mjs';
+import {DISPLAY_CURRENCIES} from './lib/presentation-fx.mjs';
 
 const dev=process.argv.includes('--dev');
 const pool=await connectDatabase();
@@ -85,6 +88,15 @@ app.get('/api/events/page',route(async req=>{
 }));
 app.get('/api/presentation-rates',route(()=>presentationFx.get()));
 app.get('/api/analysis',route(async req=>{const {currency,rate_id,...query}=req.query;return analysisOverview(pool,analysisQuerySchema.parse({...query,unclassified:req.query.unclassified==='true',unknown_merchant:req.query.unknown_merchant==='true',limit:req.query.limit===undefined?30:Number(req.query.limit),offset:req.query.offset===undefined?0:Number(req.query.offset)}),await presentationFor(req));}));
+// One question, one answer, one rule: the clarification list converts a standing
+// judgement into something the capture gate can apply on its own next time.
+app.get('/api/clarifications',route(async req=>{
+ const currency=z.enum(DISPLAY_CURRENCIES).parse(req.query.currency||'CNY');
+ const snapshot=await presentationFx.get().catch(()=>null);
+ return clarifications(pool,{currency,rates:snapshot?.rates||{CNY:'1'},rate_date:snapshot?.rate_date||null});
+}));
+app.post('/api/clarifications/answer',route(req=>answerClarification(pool,req.body)));
+app.post('/api/rules/:id/disable',route(req=>setRuleEnabled(pool,uuid(req.params.id),false)));
 app.post('/api/transactions/actions/preview',route(async req=>previewTransactionAction(pool,transactionActionSchema.parse(req.body),await presentationFor(req))));
 app.post('/api/transactions/actions/apply',route(async req=>applyTransactionAction(pool,transactionApplySchema.parse(req.body),await presentationFor(req))));
 app.get('/api/transactions/:id',route(async req=>transactionDetail(pool,uuid(req.params.id),await presentationFor(req))));

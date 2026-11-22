@@ -41,3 +41,28 @@
 .sheet-sub>*{font-weight:600;border-top:1px solid var(--line)}
 .sheet-total>*{font-weight:700;border-top:2px solid var(--green)}
 .sheet-negative{color:#a4342a}
+
+.clarify-card{border:1px solid #e4eade;border-radius:10px;padding:18px;margin-bottom:14px;background:linear-gradient(145deg,#fbfcf8,#fff)}
+.clarify-card:last-child{margin-bottom:0}
+.clarify-head{display:flex;justify-content:space-between;align-items:flex-start;gap:18px}
+.clarify-head b{font-size:14px;font-weight:600;display:block;overflow-wrap:anywhere}
+.clarify-head small{display:block;color:#7f8c80;font-size:11px;margin-top:4px}
+.clarify-head strong{display:block;font-size:20px;font-weight:500;letter-spacing:-.03em;font-variant-numeric:tabular-nums;white-space:nowrap}
+.clarify-head .numeric{text-align:right}
+.clarify-head .numeric small{color:#96a193;font-size:10px;margin-top:3px}
+.clarify-variants{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0 0}
+.clarify-variants span{background:#f1f4ec;color:#6f7d6c;border-radius:5px;padding:3px 8px;font-size:10px;overflow-wrap:anywhere}
+.clarify-samples{margin-top:12px;font-size:12px;color:#6f7d6c}
+.clarify-samples summary{cursor:pointer;font-size:11px;color:var(--green)}
+.clarify-samples ul{margin:10px 0 0;padding-left:18px}
+.clarify-samples li{margin:6px 0;overflow-wrap:anywhere}
+.clarify-samples small{display:block;color:#9aa397;font-size:10px}
+.clarify-samples small.issue{color:#b49657}
+.clarify-form{margin-top:14px;padding-top:14px;border-top:1px dashed #e1e6dd;display:grid;gap:4px}
+.clarify-form label{display:flex;flex-direction:column;gap:6px;font-size:11px;color:#708065;margin-bottom:10px}
+.clarify-form input,.clarify-form select{width:100%;font-size:13px;padding:8px}
+.clarify-form .muted{font-size:11px;margin-bottom:8px}
+.clarify-actions{display:flex;gap:12px;align-items:center;justify-content:flex-end;margin-top:12px;flex-wrap:wrap}
+.clarify-results{margin:0;padding-left:18px;font-size:12px;color:#7f8c80}
+.clarify-results li{margin:6px 0;overflow-wrap:anywhere}
+@media(max-width:760px){.clarify-head{flex-direction:column;gap:8px}.clarify-head .numeric{text-align:left}.clarify-actions button{flex:1}}
