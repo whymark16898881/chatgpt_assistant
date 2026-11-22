@@ -30,3 +30,14 @@
 .classification-request-backdrop{z-index:1050}.classification-request-backdrop .modal{max-width:680px}.classification-request-backdrop li{margin:12px 0;overflow-wrap:anywhere}
 
 .platform-details{margin-top:16px;color:#7b877d;font-size:12px}.platform-details summary{cursor:pointer}.platform-details>div{margin:10px 0;padding:8px;background:#f5f7f3}.platform-grid .statement-row{padding:8px 0}
+
+.statement-set{display:grid;gap:26px;margin-top:18px}
+.sheet h3{margin:0 0 6px;font-size:17px}
+.sheet>p{margin:0 0 12px}
+.sheet table{width:100%;border-collapse:collapse;font-size:14px}
+.sheet th[scope=row]{text-align:left;font-weight:400;padding:8px 0;color:var(--ink)}
+.sheet th[scope=row] small{font-weight:400}
+.sheet td{text-align:right;font-variant-numeric:tabular-nums;padding:8px 0;white-space:nowrap}
+.sheet-sub>*{font-weight:600;border-top:1px solid var(--line)}
+.sheet-total>*{font-weight:700;border-top:2px solid var(--green)}
+.sheet-negative{color:#a4342a}
