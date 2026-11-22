@@ -55,6 +55,11 @@ app.post('/mcp',async(req,res)=>{
  const shaped=body&&typeof body==='object'&&!Array.isArray(body)&&body.jsonrpc==='2.0'&&typeof body.method==='string';
  const standard=shaped&&/^(initialize|ping|tools\/|resources\/|prompts\/|completion\/|logging\/|notifications\/)/.test(body.method);
  if(!standard)console.log('MCP_UNUSUAL_REQUEST '+JSON.stringify({method:shaped?body.method:null,type:Array.isArray(body)?'array':typeof body,keys:body&&typeof body==='object'?Object.keys(body).slice(0,12):null,body:JSON.stringify(body??null).slice(0,600)}));
+ // A POST with no body carries no JSON-RPC message to answer. The SDK reads that
+ // as a parse failure and returns 400, which the connector treats as the whole
+ // exchange having failed — and a refresh that sends one then reports an error
+ // the user cannot act on. Nothing was asked, so acknowledge and return nothing.
+ if(body===undefined||body===null||(typeof body==='object'&&!Array.isArray(body)&&!Object.keys(body).length))return res.status(202).end();
  try{await server.connect(transport);await transport.handleRequest(req,res,req.body);}catch{if(!res.headersSent)res.status(500).json({error:'Tool request failed'});}
 });
 app.all('/mcp',(req,res)=>res.status(405).end());
