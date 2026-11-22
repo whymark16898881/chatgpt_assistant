@@ -22,5 +22,8 @@ docker exec "$app" node scripts/check-chatgpt.mjs
 # Restarting the container keeps whatever image it was created with, so a pinned
 # image upgrade never took effect. up -d leaves the container alone when nothing
 # changed and recreates it when the pin moved, which is what an upgrade needs.
-docker compose -p "$project" -f compose.yaml -f compose.chatgpt.yaml up -d tunnel >/dev/null
+# The tunnel id lives in .env.chatgpt, which compose does not read on its own;
+# a restart never needed it, so this only matters now that we rebuild.
+if [ ! -f .env.chatgpt ]; then echo 'MCP_RECONNECT_PENDING：缺少 .env.chatgpt，未重建连接器。'; exit 1; fi
+docker compose -p "$project" --env-file .env.chatgpt -f compose.yaml -f compose.chatgpt.yaml up -d tunnel >/dev/null
 echo 'MCP_CONNECTOR_RECONNECTED：已重启正式OpenAI连接器，仍需ChatGPT实际工具调用确认；未操作旧测试或网页连接器。'
