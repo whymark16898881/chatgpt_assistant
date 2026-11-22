@@ -227,3 +227,26 @@ CREATE TABLE IF NOT EXISTS cfo_booking_fx_daily (
 
 -- A platform contains assets/liabilities in several original currencies; the UI manages the platform.
 ALTER TABLE cfo_accounts ADD COLUMN IF NOT EXISTS platform_name text;
+
+-- Booking rules: things the user has decided once, so the same judgement is not
+-- made again by hand or guessed again by the model. account_pattern is what lets
+-- "SALARY" stay real income on the salary account while the monthly top-ups it
+-- funds elsewhere are recognised as internal transfers rather than new income.
+CREATE TABLE IF NOT EXISTS cfo_rules (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  priority int NOT NULL DEFAULT 100,
+  pattern text NOT NULL,
+  account_pattern text,
+  applies_to text NOT NULL DEFAULT 'any' CHECK(applies_to IN ('income','expense','any')),
+  action text NOT NULL CHECK(action IN ('categorize','skip')),
+  category text,
+  reason text NOT NULL,
+  enabled boolean NOT NULL DEFAULT true,
+  hit_count int NOT NULL DEFAULT 0,
+  last_hit_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  CHECK (action <> 'categorize' OR category IS NOT NULL)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS cfo_rules_unique
+  ON cfo_rules(lower(pattern),coalesce(lower(account_pattern),''),applies_to);
+CREATE INDEX IF NOT EXISTS cfo_rules_order ON cfo_rules(enabled,priority,created_at);
