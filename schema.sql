@@ -229,9 +229,12 @@ CREATE TABLE IF NOT EXISTS cfo_booking_fx_daily (
 ALTER TABLE cfo_accounts ADD COLUMN IF NOT EXISTS platform_name text;
 
 -- Booking rules: things the user has decided once, so the same judgement is not
--- made again by hand or guessed again by the model. account_pattern is what lets
--- "SALARY" stay real income on the salary account while the monthly top-ups it
--- funds elsewhere are recognised as internal transfers rather than new income.
+-- made again by hand or guessed again by the model. account_pattern exists
+-- because the same wording can mean different things on different accounts:
+-- an incoming line may be real income on one and the user's own money arriving
+-- from elsewhere on another, and matching on text alone cannot tell them apart.
+-- Rules naming a person or their accounts are added at runtime, never seeded
+-- here: this repository is public.
 CREATE TABLE IF NOT EXISTS cfo_rules (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   priority int NOT NULL DEFAULT 100,
@@ -255,8 +258,3 @@ CREATE UNIQUE INDEX IF NOT EXISTS cfo_rules_unique
   ON cfo_rules(lower(pattern),coalesce(lower(account_pattern),''),applies_to);
 CREATE INDEX IF NOT EXISTS cfo_rules_order ON cfo_rules(enabled,priority,created_at);
 
--- Seeded rules are inserted once and then belong to the user, so a later
--- improvement to a seed has to be applied as its own guarded migration rather
--- than by making the seed overwrite whatever the user has since changed.
-UPDATE cfo_rules SET min_amount=500,amount_currency='SGD'
- WHERE pattern='SALA' AND account_pattern='DBS|UOB' AND min_amount IS NULL;

@@ -77,14 +77,16 @@ test('an amount floor keeps a small look-alike credit out of the transfer rule',
  assert.equal(at('5000','CNY'),null,'币种对不上时金额条件不成立');
 });
 
-test('seeded rules carry the floor and the wallet mirrors cover UnionPay too',async()=>{
+test('seeded rules cover the wallets, and name nobody',async()=>{
  const rules=await listRules(pool);
- const sala=rules.find(r=>r.pattern==='SALA');
- assert.ok(sala,'SALA 规则应已种入');
- assert.equal(Number(sala.min_amount),500);
- assert.equal(sala.amount_currency,'SGD');
  for(const p of ['支付宝','财付通','微信支付','云闪付','UnionPay']){
   const r=rules.find(x=>x.pattern===p);
   assert.ok(r&&r.action==='skip',`${p} 应有镜像规则`);
+ }
+ // The repository is public: a seeded rule must hold for anyone. Rules about a
+ // particular person's accounts or counterparties are added at runtime instead.
+ const seeded=rules.filter(r=>r.reason&&!r.reason.startsWith('[测试]'));
+ for(const r of seeded){
+  assert.ok(!r.account_pattern,`种子规则不该限定具体账户：${r.pattern}`);
  }
 });
