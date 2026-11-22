@@ -90,3 +90,30 @@ test('an account filed under the old single bucket is migrated to its new line',
  const node=(await classificationTree(pool)).find(n=>n.tree==='financial'&&n.code==='expense.travel');
  assert.equal(node.parent_code,'expense.lifestyle','旧科目没有被迁移到新的一级');
 });
+
+test('every classification node has a parent that exists and shares its group',async()=>{
+ // A fresh database inserts accounts in declaration order, so a child whose parent
+ // is itself an account node can be inserted first. The parent check then reads a
+ // NULL group and reports "different business group", which hides the real cause:
+ // the parent is simply not there yet. Verified by migrating an empty database.
+ const tree=await classificationTree(pool);
+ const byKey=new Map(tree.map(n=>[n.tree+':'+n.code,n]));
+ let checked=0;
+ for(const n of tree){
+  if(!n.parent_code)continue;
+  const parent=byKey.get(n.tree+':'+n.parent_code);
+  assert.ok(parent,`${n.tree}:${n.code} 的父节点 ${n.parent_code} 不存在`);
+  assert.equal(parent.business_group,n.business_group,`${n.code} 与父节点 ${n.parent_code} 的分组不一致`);
+  checked++;
+ }
+ assert.ok(checked>10,`只检查到 ${checked} 个父子关系，树看起来没建起来`);
+});
+
+test('side income hangs under other income, which is itself a seeded node',async()=>{
+ const tree=await classificationTree(pool);
+ const other=tree.find(n=>n.tree==='financial'&&n.code==='income.other');
+ assert.ok(other,'其他收入必须是种子节点，否则副业会先于它插入');
+ assert.equal(other.parent_code,'income');
+ const side=tree.find(n=>n.tree==='financial'&&n.code==='income.side');
+ if(side)assert.equal(side.parent_code,'income.other');
+});
