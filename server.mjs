@@ -47,6 +47,14 @@ app.post('/mcp',async(req,res)=>{
  if(!equalSecret(req.headers.authorization,mcpAuthorization))return res.status(401).json({error:'Unauthorized'});
  const transport=new StreamableHTTPServerTransport({sessionIdGenerator:undefined});const server=financeMcp(pool,documents);
  res.on('close',()=>{void transport.close();void server.close();});
+ // Temporary: the connector's refresh probe is rejected as malformed JSON-RPC and
+ // we have never seen what it actually sends. Log only requests that are not a
+ // standard MCP call — a probe carries protocol fields, never ledger data — so the
+ // compatibility fix can be written against the real shape instead of a guess.
+ const body=req.body;
+ const shaped=body&&typeof body==='object'&&!Array.isArray(body)&&body.jsonrpc==='2.0'&&typeof body.method==='string';
+ const standard=shaped&&/^(initialize|ping|tools\/|resources\/|prompts\/|completion\/|logging\/|notifications\/)/.test(body.method);
+ if(!standard)console.log('MCP_UNUSUAL_REQUEST '+JSON.stringify({method:shaped?body.method:null,type:Array.isArray(body)?'array':typeof body,keys:body&&typeof body==='object'?Object.keys(body).slice(0,12):null,body:JSON.stringify(body??null).slice(0,600)}));
  try{await server.connect(transport);await transport.handleRequest(req,res,req.body);}catch{if(!res.headersSent)res.status(500).json({error:'Tool request failed'});}
 });
 app.all('/mcp',(req,res)=>res.status(405).end());
