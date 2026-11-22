@@ -19,5 +19,8 @@ until [ "$(docker inspect -f '{{.State.Health.Status}}' "$app")" = healthy ]; do
  sleep 2
 done
 docker exec "$app" node scripts/check-chatgpt.mjs
-docker restart "$connector" >/dev/null
+# Restarting the container keeps whatever image it was created with, so a pinned
+# image upgrade never took effect. up -d leaves the container alone when nothing
+# changed and recreates it when the pin moved, which is what an upgrade needs.
+docker compose -p "$project" -f compose.yaml -f compose.chatgpt.yaml up -d tunnel >/dev/null
 echo 'MCP_CONNECTOR_RECONNECTED：已重启正式OpenAI连接器，仍需ChatGPT实际工具调用确认；未操作旧测试或网页连接器。'
