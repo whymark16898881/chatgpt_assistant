@@ -8,6 +8,8 @@ import {readFile} from 'node:fs/promises';
 import path from 'node:path';
 import {z} from 'zod';
 import {StreamableHTTPServerTransport} from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import {InMemoryTransport} from '@modelcontextprotocol/sdk/inMemory.js';
+import {Client} from '@modelcontextprotocol/sdk/client/index.js';
 import {connectDatabase} from './lib/db.mjs';
 import {documentService} from './lib/documents.mjs';
 import {financeMcp} from './lib/mcp.mjs';
@@ -43,6 +45,19 @@ app.get('/health/booking-rates',(req,res)=>{res.setHeader('Cache-Control','no-st
 app.get('/health/presentation',(req,res)=>{res.setHeader('Cache-Control','no-store');res.json(presentationFx.status());});
 app.get('/health',async(req,res)=>{try{await pool.query('SELECT 1');res.json({status:'ready',version:VERSION});}catch{res.status(503).json({status:'not_ready'});}});
 app.get(['/.well-known/oauth-protected-resource','/.well-known/oauth-protected-resource/mcp'],(req,res)=>res.status(404).json({error:'not_advertised'}));
+// Taken once and reused: the tool list is fixed at build time, and standing up a
+// server per discovery call would be work with no new answer.
+let inventory=null;
+async function toolInventory(){
+ if(inventory)return inventory;
+ const [clientSide,serverSide]=InMemoryTransport.createLinkedPair();
+ const server=financeMcp(pool,documents),client=new Client({name:'discover',version:'1'});
+ try{
+  await server.connect(serverSide);await client.connect(clientSide);
+  inventory=(await client.listTools()).tools;
+  return inventory;
+ }finally{await client.close().catch(()=>{});await server.close().catch(()=>{});}
+}
 app.post('/mcp',async(req,res)=>{
  if(!equalSecret(req.headers.authorization,mcpAuthorization))return res.status(401).json({error:'Unauthorized'});
  const transport=new StreamableHTTPServerTransport({sessionIdGenerator:undefined});const server=financeMcp(pool,documents);
@@ -60,6 +75,22 @@ app.post('/mcp',async(req,res)=>{
  // exchange having failed — and a refresh that sends one then reports an error
  // the user cannot act on. Nothing was asked, so acknowledge and return nothing.
  if(body===undefined||body===null||(typeof body==='object'&&!Array.isArray(body)&&!Object.keys(body).length))return res.status(202).end();
+ // server/discover is OpenAI's own method: absent from the MCP spec and from the
+ // SDK, which answers Method not found. Refreshing a connector's tools goes
+ // through it and nothing else, so that answer leaves the user with a refresh
+ // that always fails. Its params carry what initialize carries, and the name says
+ // discovery, so answer with what initialize returns plus the tool list — a
+ // client reading either half finds what it came for.
+ if(shaped&&body.method==='server/discover'){
+  try{
+   const tools=await toolInventory();
+   return res.json({jsonrpc:'2.0',id:body.id,result:{
+    protocolVersion:body.params?._meta?.['io.modelcontextprotocol/protocolVersion']||'2025-06-18',
+    capabilities:{tools:{listChanged:false}},
+    serverInfo:{name:'personal-cfo',version:VERSION},
+    tools}});
+  }catch{/* fall through to the SDK, which will say Method not found */}
+ }
  try{await server.connect(transport);await transport.handleRequest(req,res,req.body);}catch{if(!res.headersSent)res.status(500).json({error:'Tool request failed'});}
 });
 app.all('/mcp',(req,res)=>res.status(405).end());

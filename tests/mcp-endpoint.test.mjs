@@ -46,16 +46,33 @@ test('a POST with no message is acknowledged, not rejected',async()=>{
  assert.equal((await post({})).status,202,'空对象 body 应 202');
 });
 
-test('real calls still work, and an unknown method answers in JSON-RPC rather than failing',async()=>{
- const list=await post({jsonrpc:'2.0',id:1,method:'tools/list',params:{}});
- assert.equal(list.status,200);
+test('standard calls keep working, and an unknown method answers in JSON-RPC',async()=>{
+ assert.equal((await post({jsonrpc:'2.0',id:1,method:'tools/list',params:{}})).status,200);
+ assert.equal((await post({jsonrpc:'2.0',id:2,method:'initialize',params:{protocolVersion:'2025-06-18',capabilities:{},clientInfo:{name:'t',version:'1'}}})).status,200);
+ const unknown=await post({jsonrpc:'2.0',id:'u1',method:'totally/unknown',params:{}});
+ assert.equal(unknown.status,200,'未知方法不该用 HTTP 错误回应');
+ const text=await unknown.text();
+ assert.match(text,/"id":"u1"/,'响应必须带回请求的 id');
+ assert.match(text,/-32601/);
+});
 
- // server/discover is OpenAI's own extension, absent from the spec and from the
- // SDK. It must still come back as a well-formed JSON-RPC error carrying the
- // request's id, so the client can match the reply to what it asked.
- const probe=await post({jsonrpc:'2.0',id:'openai-mcp-discover',method:'server/discover',params:{}});
- assert.equal(probe.status,200,'未知方法不该用 HTTP 错误回应');
- const text=await probe.text();
- assert.match(text,/"id":"openai-mcp-discover"/,'响应必须带回请求的 id');
- assert.match(text,/-32601/,'应是标准的 Method not found');
+test('server/discover answers with the tool inventory instead of Method not found',async()=>{
+ // Refreshing a connector's tools goes through this method and nothing else, so
+ // answering Method not found leaves the user with a refresh that always fails.
+ const r=await post({jsonrpc:'2.0',id:'openai-mcp-discover',method:'server/discover',
+  params:{_meta:{'io.modelcontextprotocol/protocolVersion':'2026-07-28',
+   'io.modelcontextprotocol/clientInfo':{name:'openai-mcp (Codex)',version:'1.0.0'}}}});
+ assert.equal(r.status,200);
+ const d=await r.json();
+ assert.equal(d.id,'openai-mcp-discover','必须带回请求的 id，否则客户端匹配不上');
+ assert.ok(!d.error,'不能再回 Method not found');
+ assert.equal(d.result.protocolVersion,'2026-07-28','应回显客户端自己报的协议版本');
+ assert.equal(d.result.serverInfo.name,'personal-cfo');
+ const names=d.result.tools.map(t=>t.name);
+ assert.ok(names.length>10,`工具清单只有 ${names.length} 个`);
+ for(const n of ['cfo_health','cfo_rules_add','cfo_rules_list'])
+  assert.ok(names.includes(n),`清单里缺 ${n}`);
+ // Whatever the client reads, both halves have to agree about what exists.
+ const listed=(await (await post({jsonrpc:'2.0',id:9,method:'tools/list',params:{}})).text());
+ for(const n of names)assert.ok(listed.includes(`"${n}"`),`${n} 在 discover 里有、tools/list 里没有`);
 });
