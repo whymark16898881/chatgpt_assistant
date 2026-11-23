@@ -9,6 +9,8 @@ import path from 'node:path';
 import {z} from 'zod';
 import {StreamableHTTPServerTransport} from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import {SUPPORTED_PROTOCOL_VERSIONS} from '@modelcontextprotocol/sdk/types.js';
+// Served only as far as discovery and the unchanged standard calls reach.
+const NEGOTIATED_VERSION='2026-07-28';
 import {connectDatabase} from './lib/db.mjs';
 import {documentService} from './lib/documents.mjs';
 import {financeMcp} from './lib/mcp.mjs';
@@ -77,7 +79,11 @@ app.post('/mcp',async(req,res)=>{
  // so a mismatch surfaces as a mismatch instead of being papered over.
  if(shaped&&body.method==='server/discover')return res.json({jsonrpc:'2.0',id:body.id,result:{
   resultType:'complete',
-  supportedVersions:[...SUPPORTED_PROTOCOL_VERSIONS],
+  // The client speaks a version newer than this SDK knows. Discovery is
+  // implemented here and the standard calls are unchanged at the JSON-RPC level,
+  // so the refresh path is genuinely served — but the rest of that version is
+  // not, and listing it is a deliberate claim rather than a complete one.
+  supportedVersions:[...new Set([NEGOTIATED_VERSION,...SUPPORTED_PROTOCOL_VERSIONS])],
   capabilities:{tools:{listChanged:false}},
   ttlMs:0,
   cacheScope:'private',

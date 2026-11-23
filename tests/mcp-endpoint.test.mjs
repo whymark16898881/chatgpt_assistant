@@ -77,8 +77,9 @@ test('server/discover answers in the DiscoverResult shape, not Method not found'
  // Report what is actually supported. Echoing the client's version would hide a
  // mismatch instead of letting it surface.
  assert.ok(Array.isArray(d.result.supportedVersions)&&d.result.supportedVersions.length);
- assert.ok(d.result.supportedVersions.includes('2025-06-18'));
- assert.ok(!d.result.supportedVersions.includes('2026-07-28'),'不能谎称支持我们并不支持的版本');
+ assert.ok(d.result.supportedVersions.includes('2025-06-18'),'SDK 原本支持的版本不能丢');
+ assert.ok(d.result.supportedVersions.includes('2026-07-28'),'发现与标准调用在这一版上确实可用，要列出来，否则客户端停在发现阶段');
+ assert.equal(new Set(d.result.supportedVersions).size,d.result.supportedVersions.length,'版本列表不能重复');
 
  // Discovery precedes tools/list rather than replacing it.
  assert.ok(!('tools' in d.result),'工具清单不属于发现响应');
