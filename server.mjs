@@ -9,8 +9,11 @@ import path from 'node:path';
 import {z} from 'zod';
 import {StreamableHTTPServerTransport} from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import {SUPPORTED_PROTOCOL_VERSIONS} from '@modelcontextprotocol/sdk/types.js';
+import {InMemoryTransport} from '@modelcontextprotocol/sdk/inMemory.js';
+import {Client} from '@modelcontextprotocol/sdk/client/index.js';
 // Served only as far as discovery and the unchanged standard calls reach.
 const NEGOTIATED_VERSION='2026-07-28';
+const REMOVED_IN_NEGOTIATED=['initialize','ping','logging/setLevel','resources/subscribe','resources/unsubscribe'];
 import {connectDatabase} from './lib/db.mjs';
 import {documentService} from './lib/documents.mjs';
 import {financeMcp} from './lib/mcp.mjs';
@@ -46,6 +49,19 @@ app.get('/health/booking-rates',(req,res)=>{res.setHeader('Cache-Control','no-st
 app.get('/health/presentation',(req,res)=>{res.setHeader('Cache-Control','no-store');res.json(presentationFx.status());});
 app.get('/health',async(req,res)=>{try{await pool.query('SELECT 1');res.json({status:'ready',version:VERSION});}catch{res.status(503).json({status:'not_ready'});}});
 app.get(['/.well-known/oauth-protected-resource','/.well-known/oauth-protected-resource/mcp'],(req,res)=>res.status(404).json({error:'not_advertised'}));
+// The tool list is fixed at build time, so take it once rather than standing up a
+// server per request.
+let inventory=null;
+async function toolInventory(){
+ if(inventory)return inventory;
+ const [clientSide,serverSide]=InMemoryTransport.createLinkedPair();
+ const server=financeMcp(pool,documents),client=new Client({name:'inventory',version:'1'});
+ try{
+  await server.connect(serverSide);await client.connect(clientSide);
+  inventory=(await client.listTools()).tools;
+  return inventory;
+ }finally{await client.close().catch(()=>{});await server.close().catch(()=>{});}
+}
 app.post('/mcp',async(req,res)=>{
  if(!equalSecret(req.headers.authorization,mcpAuthorization))return res.status(401).json({error:'Unauthorized'});
  const transport=new StreamableHTTPServerTransport({sessionIdGenerator:undefined});const server=financeMcp(pool,documents);
@@ -77,6 +93,26 @@ app.post('/mcp',async(req,res)=>{
  // tools/list, which discovery is meant to precede rather than replace. Report
  // the versions actually supported rather than echoing what the client asked for,
  // so a mismatch surfaces as a mismatch instead of being papered over.
+ // Everything below applies only when the client says it speaks the newer
+ // revision. The SDK serves every other client exactly as before; a client on the
+ // handshake-based versions must keep finding initialize where it left it.
+ const negotiated=shaped&&body.params?._meta?.['io.modelcontextprotocol/protocolVersion']===NEGOTIATED_VERSION;
+ // That revision drops the handshake, so these no longer exist. Answering 200 to
+ // a method the version removed tells the client the opposite of the truth.
+ if(negotiated&&REMOVED_IN_NEGOTIATED.includes(body.method))
+  return res.status(404).json({jsonrpc:'2.0',id:body.id,error:{code:-32601,message:'Method not found'}});
+ // Results there carry cache metadata. The SDK writes the older shape straight to
+ // the response, so this one is answered here instead of being handed over.
+ if(negotiated&&body.method==='tools/list'){
+  try{
+   return res.json({jsonrpc:'2.0',id:body.id,result:{
+    resultType:'complete',
+    tools:await toolInventory(),
+    ttlMs:0,
+    cacheScope:'private',
+    _meta:{'io.modelcontextprotocol/serverInfo':{name:'personal-cfo',version:VERSION}}}});
+  }catch(e){console.log('MCP_INVENTORY_FAILED '+String(e&&e.message).slice(0,200));}
+ }
  if(shaped&&body.method==='server/discover')return res.json({jsonrpc:'2.0',id:body.id,result:{
   resultType:'complete',
   // The client speaks a version newer than this SDK knows. Discovery is

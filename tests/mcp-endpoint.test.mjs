@@ -85,3 +85,32 @@ test('server/discover answers in the DiscoverResult shape, not Method not found'
  assert.ok(!('tools' in d.result),'工具清单不属于发现响应');
  assert.equal((await post({jsonrpc:'2.0',id:9,method:'tools/list',params:{}})).status,200);
 });
+
+const META={'io.modelcontextprotocol/protocolVersion':'2026-07-28'};
+
+test('the newer revision gets its own shapes, and the older path is untouched',async()=>{
+ // Only requests that say they speak the newer revision take the new paths. A
+ // client on the handshake-based versions must keep finding initialize working.
+ const modern=await post({jsonrpc:'2.0',id:1,method:'tools/list',params:{_meta:META}});
+ assert.equal(modern.status,200);
+ const m=await modern.json();
+ for(const k of ['resultType','tools','ttlMs','cacheScope'])
+  assert.ok(k in m.result,`新版 tools/list 缺必填字段 ${k}`);
+ assert.equal(m.result.resultType,'complete');
+ assert.ok(m.result.tools.some(t=>t.name==='cfo_rules_add'),'工具清单应是真的那份');
+
+ // The handshake is gone in that revision, so these must not answer as if present.
+ for(const method of ['initialize','ping','logging/setLevel','resources/subscribe','resources/unsubscribe']){
+  const r=await post({jsonrpc:'2.0',id:'x',method,params:{_meta:META}});
+  assert.equal(r.status,404,`${method} 在新版下应 404`);
+  const e=await r.json();
+  assert.equal(e.error.code,-32601);
+  assert.equal(e.id,'x','错误响应也要带回 id');
+ }
+
+ // Without that _meta, nothing changes.
+ assert.equal((await post({jsonrpc:'2.0',id:2,method:'initialize',params:{protocolVersion:'2025-06-18',capabilities:{},clientInfo:{name:'t',version:'1'}}})).status,200);
+ const old=await post({jsonrpc:'2.0',id:3,method:'tools/list',params:{}});
+ assert.equal(old.status,200);
+ assert.ok(!(await old.text()).includes('cacheScope'),'旧路径不该被改成新格式');
+});
