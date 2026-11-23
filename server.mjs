@@ -8,8 +8,7 @@ import {readFile} from 'node:fs/promises';
 import path from 'node:path';
 import {z} from 'zod';
 import {StreamableHTTPServerTransport} from '@modelcontextprotocol/sdk/server/streamableHttp.js';
-import {InMemoryTransport} from '@modelcontextprotocol/sdk/inMemory.js';
-import {Client} from '@modelcontextprotocol/sdk/client/index.js';
+import {SUPPORTED_PROTOCOL_VERSIONS} from '@modelcontextprotocol/sdk/types.js';
 import {connectDatabase} from './lib/db.mjs';
 import {documentService} from './lib/documents.mjs';
 import {financeMcp} from './lib/mcp.mjs';
@@ -45,19 +44,6 @@ app.get('/health/booking-rates',(req,res)=>{res.setHeader('Cache-Control','no-st
 app.get('/health/presentation',(req,res)=>{res.setHeader('Cache-Control','no-store');res.json(presentationFx.status());});
 app.get('/health',async(req,res)=>{try{await pool.query('SELECT 1');res.json({status:'ready',version:VERSION});}catch{res.status(503).json({status:'not_ready'});}});
 app.get(['/.well-known/oauth-protected-resource','/.well-known/oauth-protected-resource/mcp'],(req,res)=>res.status(404).json({error:'not_advertised'}));
-// Taken once and reused: the tool list is fixed at build time, and standing up a
-// server per discovery call would be work with no new answer.
-let inventory=null;
-async function toolInventory(){
- if(inventory)return inventory;
- const [clientSide,serverSide]=InMemoryTransport.createLinkedPair();
- const server=financeMcp(pool,documents),client=new Client({name:'discover',version:'1'});
- try{
-  await server.connect(serverSide);await client.connect(clientSide);
-  inventory=(await client.listTools()).tools;
-  return inventory;
- }finally{await client.close().catch(()=>{});await server.close().catch(()=>{});}
-}
 app.post('/mcp',async(req,res)=>{
  if(!equalSecret(req.headers.authorization,mcpAuthorization))return res.status(401).json({error:'Unauthorized'});
  const transport=new StreamableHTTPServerTransport({sessionIdGenerator:undefined});const server=financeMcp(pool,documents);
@@ -69,7 +55,8 @@ app.post('/mcp',async(req,res)=>{
  const body=req.body;
  const shaped=body&&typeof body==='object'&&!Array.isArray(body)&&body.jsonrpc==='2.0'&&typeof body.method==='string';
  const standard=shaped&&/^(initialize|ping|tools\/|resources\/|prompts\/|completion\/|logging\/|notifications\/)/.test(body.method);
- if(!standard)console.log('MCP_UNUSUAL_REQUEST '+JSON.stringify({method:shaped?body.method:null,type:Array.isArray(body)?'array':typeof body,keys:body&&typeof body==='object'?Object.keys(body).slice(0,12):null,body:JSON.stringify(body??null).slice(0,600)}));
+ if(standard)console.log('MCP_CALL '+JSON.stringify({method:body.method,id:body.id??null}));
+ else console.log('MCP_UNUSUAL_REQUEST '+JSON.stringify({method:shaped?body.method:null,type:Array.isArray(body)?'array':typeof body,keys:body&&typeof body==='object'?Object.keys(body).slice(0,12):null,body:JSON.stringify(body??null).slice(0,600)}));
  // A POST with no body carries no JSON-RPC message to answer. The SDK reads that
  // as a parse failure and returns 400, which the connector treats as the whole
  // exchange having failed — and a refresh that sends one then reports an error
@@ -81,16 +68,20 @@ app.post('/mcp',async(req,res)=>{
  // that always fails. Its params carry what initialize carries, and the name says
  // discovery, so answer with what initialize returns plus the tool list — a
  // client reading either half finds what it came for.
- if(shaped&&body.method==='server/discover'){
-  try{
-   const tools=await toolInventory();
-   return res.json({jsonrpc:'2.0',id:body.id,result:{
-    protocolVersion:body.params?._meta?.['io.modelcontextprotocol/protocolVersion']||'2025-06-18',
-    capabilities:{tools:{listChanged:false}},
-    serverInfo:{name:'personal-cfo',version:VERSION},
-    tools}});
-  }catch{/* fall through to the SDK, which will say Method not found */}
- }
+ // Discovery is how a connector refreshes its tools, and the SDK does not
+ // implement it: the method belongs to a protocol version newer than the one this
+ // SDK knows, so it answers Method not found and a refresh can never succeed.
+ // The result carries versions and capabilities only — the tool list stays with
+ // tools/list, which discovery is meant to precede rather than replace. Report
+ // the versions actually supported rather than echoing what the client asked for,
+ // so a mismatch surfaces as a mismatch instead of being papered over.
+ if(shaped&&body.method==='server/discover')return res.json({jsonrpc:'2.0',id:body.id,result:{
+  resultType:'complete',
+  supportedVersions:[...SUPPORTED_PROTOCOL_VERSIONS],
+  capabilities:{tools:{listChanged:false}},
+  ttlMs:0,
+  cacheScope:'private',
+  _meta:{'io.modelcontextprotocol/serverInfo':{name:'personal-cfo',version:VERSION}}}});
  try{await server.connect(transport);await transport.handleRequest(req,res,req.body);}catch{if(!res.headersSent)res.status(500).json({error:'Tool request failed'});}
 });
 app.all('/mcp',(req,res)=>res.status(405).end());

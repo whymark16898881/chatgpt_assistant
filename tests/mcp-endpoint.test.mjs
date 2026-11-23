@@ -56,7 +56,7 @@ test('standard calls keep working, and an unknown method answers in JSON-RPC',as
  assert.match(text,/-32601/);
 });
 
-test('server/discover answers with the tool inventory instead of Method not found',async()=>{
+test('server/discover answers in the DiscoverResult shape, not Method not found',async()=>{
  // Refreshing a connector's tools goes through this method and nothing else, so
  // answering Method not found leaves the user with a refresh that always fails.
  const r=await post({jsonrpc:'2.0',id:'openai-mcp-discover',method:'server/discover',
@@ -66,13 +66,21 @@ test('server/discover answers with the tool inventory instead of Method not foun
  const d=await r.json();
  assert.equal(d.id,'openai-mcp-discover','必须带回请求的 id，否则客户端匹配不上');
  assert.ok(!d.error,'不能再回 Method not found');
- assert.equal(d.result.protocolVersion,'2026-07-28','应回显客户端自己报的协议版本');
- assert.equal(d.result.serverInfo.name,'personal-cfo');
- const names=d.result.tools.map(t=>t.name);
- assert.ok(names.length>10,`工具清单只有 ${names.length} 个`);
- for(const n of ['cfo_health','cfo_rules_add','cfo_rules_list'])
-  assert.ok(names.includes(n),`清单里缺 ${n}`);
- // Whatever the client reads, both halves have to agree about what exists.
- const listed=(await (await post({jsonrpc:'2.0',id:9,method:'tools/list',params:{}})).text());
- for(const n of names)assert.ok(listed.includes(`"${n}"`),`${n} 在 discover 里有、tools/list 里没有`);
+ for(const k of ['resultType','supportedVersions','capabilities','ttlMs','cacheScope'])
+  assert.ok(k in d.result,`DiscoverResult 缺必填字段 ${k}`);
+ assert.equal(d.result.resultType,'complete');
+ assert.equal(d.result.cacheScope,'private');
+ assert.equal(typeof d.result.ttlMs,'number');
+ assert.ok(d.result.ttlMs>=0,'ttlMs 不能为负');
+ assert.equal(d.result._meta['io.modelcontextprotocol/serverInfo'].name,'personal-cfo');
+
+ // Report what is actually supported. Echoing the client's version would hide a
+ // mismatch instead of letting it surface.
+ assert.ok(Array.isArray(d.result.supportedVersions)&&d.result.supportedVersions.length);
+ assert.ok(d.result.supportedVersions.includes('2025-06-18'));
+ assert.ok(!d.result.supportedVersions.includes('2026-07-28'),'不能谎称支持我们并不支持的版本');
+
+ // Discovery precedes tools/list rather than replacing it.
+ assert.ok(!('tools' in d.result),'工具清单不属于发现响应');
+ assert.equal((await post({jsonrpc:'2.0',id:9,method:'tools/list',params:{}})).status,200);
 });
